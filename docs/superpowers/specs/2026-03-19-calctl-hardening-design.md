@@ -3,24 +3,30 @@
 **Date:** 2026-03-19
 **Platform:** macOS only (requires EventKit framework via PyObjC)
 **Python:** ≥3.10 (constrained by PyObjC; lowest version enabling full functionality)
-**Goal:** Harden calctl with Typer CLI, proper error handling, logging, dual output formats, full EventKit coverage, strict typing/linting, and tests.
+**License:** MIT
+**Goal:** Harden calctl with Typer CLI, proper error handling, logging, dual output formats, full EventKit coverage, strict typing/linting, tests, and PyPI/Homebrew distribution readiness.
 **Approach:** Incremental refactor — keep flat module structure, add `errors.py` and `formatting.py`.
 
 ## File Structure (after)
 
 ```
-src/calctl/
-├── __init__.py
-├── calendar.py      # EventKit access (refactored: exceptions, logging, full API)
-├── cli.py           # Typer CLI (replaces argparse)
-├── errors.py        # Exception hierarchy (new)
-├── formatting.py    # Output formatting (new)
-└── py.typed
-tests/
-├── conftest.py      # Shared fixtures
-├── test_calendar.py
-├── test_cli.py
-└── test_formatting.py
+├── LICENSE
+├── README.md
+├── pyproject.toml
+├── src/calctl/
+│   ├── __init__.py
+│   ├── calendar.py      # EventKit access (refactored: exceptions, logging, full API)
+│   ├── cli.py           # Typer CLI (replaces argparse)
+│   ├── errors.py        # Exception hierarchy (new)
+│   ├── formatting.py    # Output formatting (new)
+│   └── py.typed
+├── tests/
+│   ├── conftest.py      # Shared fixtures
+│   ├── test_calendar.py
+│   ├── test_cli.py
+│   └── test_formatting.py
+└── Formula/
+    └── calctl.rb        # Homebrew formula (new)
 ```
 
 ## 1. Error Handling (`errors.py`)
@@ -437,7 +443,26 @@ All date range and input validation happens in `calendar.py`, before querying Ev
 name = "calctl"
 version = "0.1.0"
 description = "macOS Calendar CLI using EventKit"
+readme = "README.md"
+license = "MIT"
 requires-python = ">=3.10"
+authors = [
+    { name = "Umur Karatay", email = "umur@karatay.com" },
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Office/Business :: Scheduling",
+    "Typing :: Typed",
+]
 dependencies = [
     "pyobjc-framework-EventKit>=11.0",
     "pyobjc-framework-CoreLocation>=11.0",
@@ -447,6 +472,11 @@ dependencies = [
 
 [project.scripts]
 calctl = "calctl.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/ukaratay/calctl"
+Repository = "https://github.com/ukaratay/calctl"
+Issues = "https://github.com/ukaratay/calctl/issues"
 
 [build-system]
 requires = ["hatchling"]
@@ -461,7 +491,7 @@ dev = [
 ]
 ```
 
-### Ruff (`ruff.toml` or `[tool.ruff]` in pyproject.toml)
+### Ruff (in `pyproject.toml`)
 
 Strict defaults with all safety-focused rules enabled:
 
@@ -492,7 +522,7 @@ quote-style = "double"
 indent-style = "space"
 ```
 
-### Pyright
+### Pyright (in `pyproject.toml`)
 
 Strict mode for full type safety:
 
@@ -507,7 +537,7 @@ reportUnknownVariableType = "warning"     # PyObjC return types
 reportAttributeAccessIssue = "warning"    # PyObjC dynamic methods
 ```
 
-**Note on PyObjC and Pyright:** PyObjC uses dynamic Objective-C bridging — most EventKit types have no Python type stubs. The pyright config relaxes `reportMissing*`/`reportUnknown*` rules to `warning` (not `error`) to avoid false positives on PyObjC calls. All pure-Python code (errors, formatting, rrule, CLI) must pass strict checks with zero errors.
+**Note on PyObjC and Pyright:** PyObjC uses dynamic Objective-C bridging — most EventKit types have no Python type stubs. The pyright config relaxes `reportMissing*`/`reportUnknown*` rules to `warning` (not `error`) to avoid false positives on PyObjC calls. All pure-Python code (errors, formatting, CLI) must pass strict checks with zero errors.
 
 ### CI / Developer Workflow
 
@@ -522,8 +552,75 @@ uv run pytest                      # Tests
 ## 9. Platform & Compatibility
 
 - **macOS only.** calctl depends on Apple's EventKit framework via PyObjC. It will not install or run on Linux/Windows.
-- `pyproject.toml` does not add platform classifiers or markers — PyObjC itself will fail to install on non-macOS platforms, which is sufficient.
+- Classifiers include `Operating System :: MacOS` to signal this on PyPI.
+- PyObjC itself will fail to install on non-macOS platforms, providing a clear error.
 - All test files for `calendar.py` use `@pytest.mark.skipif(sys.platform != "darwin")` for safety, though in practice tests will only run on macOS.
-- `formatting.py`, `rrule.py`, `errors.py`, and CLI integration tests (with mocked calendar) are pure Python and technically cross-platform.
 
+## 10. Distribution
+
+### README.md
+
+A proper README for PyPI/GitHub with:
+- One-line description and badges (PyPI version, Python version, License)
+- Feature list (what calctl does)
+- Installation: `pip install calctl` / `brew install ukaratay/tap/calctl`
+- Quick start examples (list calendars, list events, create, search, show, edit, delete)
+- Full CLI reference (all commands, all flags with descriptions)
+- macOS permissions note (System Settings → Privacy & Security → Calendars)
+- License
+
+### LICENSE
+
+MIT license file with copyright `Umur Karatay`.
+
+### PyPI Publishing
+
+- Build with `uv build` (produces sdist + wheel via hatchling)
+- Publish with `uv publish` (or `twine upload`)
+- The `py.typed` marker file is already present for PEP 561 typed package support
+- Version managed in `pyproject.toml` (`version = "0.1.0"`)
+
+### Homebrew Formula (`Formula/calctl.rb`)
+
+A Homebrew formula for the `ukaratay/tap` tap:
+
+```ruby
+class Calctl < Formula
+  include Language::Python::Virtualenv
+
+  desc "macOS Calendar CLI using EventKit"
+  homepage "https://github.com/ukaratay/calctl"
+  url "https://files.pythonhosted.org/packages/source/c/calctl/calctl-VERSION.tar.gz"
+  sha256 "SHA256"
+  license "MIT"
+
+  depends_on :macos
+  depends_on "python@3.12"
+
+  # resource blocks for each dependency (generated from uv export)
+
+  def install
+    virtualenv_install_with_resources
+  end
+
+  test do
+    assert_match "Usage", shell_output("#{bin}/calctl --help")
+  end
+end
+```
+
+**Homebrew tap setup:**
+1. Create repo `ukaratay/homebrew-tap` on GitHub
+2. Place formula at `Formula/calctl.rb` in that repo
+3. Users install with: `brew tap ukaratay/tap && brew install calctl`
+4. Formula is updated after each PyPI release (update URL, sha256, resource blocks)
+
+### Release Workflow
+
+1. Update version in `pyproject.toml`
+2. Run all checks (`ruff check`, `ruff format --check`, `pyright`, `pytest`)
+3. Commit, tag (`git tag v0.1.0`), push with tags
+4. Build: `uv build`
+5. Publish to PyPI: `uv publish`
+6. Update Homebrew formula (URL, sha256, resources) in `ukaratay/homebrew-tap`
 
