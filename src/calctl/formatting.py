@@ -43,7 +43,7 @@ def _format_text(data: Any) -> str:  # noqa: ANN401
         if not data:
             return "No events found."
         first = data[0]
-        if isinstance(first, dict) and "name" in first and "id" not in first:
+        if isinstance(first, dict) and "name" in first and "start" not in first:
             return _format_calendar_list(data)
         return _format_event_list(data)
 
