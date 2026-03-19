@@ -18,13 +18,12 @@ from calctl.errors import (
     RRuleParseError,
 )
 
-pytestmark = pytest.mark.skipif(
-    sys.platform != "darwin", reason="macOS only"
-)
+pytestmark = pytest.mark.skipif(sys.platform != "darwin", reason="macOS only")
 
 # ---------------------------------------------------------------------------
 # Helpers (import after skipif so non-darwin won't choke on missing modules)
 # ---------------------------------------------------------------------------
+
 
 def _get_cal(patched_calendar: Any) -> Any:
     return patched_calendar
@@ -33,6 +32,7 @@ def _get_cal(patched_calendar: Any) -> Any:
 # ---------------------------------------------------------------------------
 # _ns_date / date parsing
 # ---------------------------------------------------------------------------
+
 
 class TestNsDate:
     def test_valid_datetime(self, patched_calendar: Any) -> None:
@@ -50,9 +50,8 @@ class TestNsDate:
         # The mock formatter returns a mock for any string.
         # We test the real logic by patching formatter to return None.
         import calctl.calendar as real_cal
-        with patch.object(
-            real_cal, "_import_foundation"
-        ) as mock_fd_factory:
+
+        with patch.object(real_cal, "_import_foundation") as mock_fd_factory:
             fd = MagicMock()
             formatter_inst = MagicMock()
             formatter_inst.dateFromString_.return_value = None
@@ -67,28 +66,33 @@ class TestNsDate:
 # _format_alarm
 # ---------------------------------------------------------------------------
 
+
 class TestFormatAlarm:
     def test_relative_minutes(self, patched_calendar: Any) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_alarm
+
         alarm = _make_mock_alarm(relative_offset=-900)
         assert cal._format_alarm(alarm) == "-15m"
 
     def test_relative_hours(self, patched_calendar: Any) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_alarm
+
         alarm = _make_mock_alarm(relative_offset=-3600)
         assert cal._format_alarm(alarm) == "-1h"
 
     def test_relative_days(self, patched_calendar: Any) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_alarm
+
         alarm = _make_mock_alarm(relative_offset=-172800)
         assert cal._format_alarm(alarm) == "-2d"
 
     def test_absolute_alarm(self, patched_calendar: Any) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_alarm
+
         alarm = _make_mock_alarm(absolute_iso="2026-03-20T09:00:00")
         result = cal._format_alarm(alarm)
         assert "2026-03-20" in result
@@ -97,6 +101,7 @@ class TestFormatAlarm:
 # ---------------------------------------------------------------------------
 # _parse_alarm
 # ---------------------------------------------------------------------------
+
 
 class TestParseAlarm:
     def test_relative_minutes(self, patched_calendar: Any) -> None:
@@ -122,6 +127,7 @@ class TestParseAlarm:
     def test_invalid_raises(self, patched_calendar: Any) -> None:
         cal = _get_cal(patched_calendar)
         import calctl.calendar as real_cal
+
         with patch.object(real_cal, "_import_foundation") as mock_fd_factory:
             fd = MagicMock()
             formatter_inst = MagicMock()
@@ -137,6 +143,7 @@ class TestParseAlarm:
 # ---------------------------------------------------------------------------
 # _parse_geo
 # ---------------------------------------------------------------------------
+
 
 class TestParseGeo:
     def test_valid_geo(self, patched_calendar: Any) -> None:
@@ -165,10 +172,12 @@ class TestParseGeo:
 # _event_to_dict — full field coverage
 # ---------------------------------------------------------------------------
 
+
 class TestEventToDict:
     def test_basic_fields(self, patched_calendar: Any) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_event
+
         event = _make_mock_event()
         result = cal._event_to_dict(event)
 
@@ -183,6 +192,7 @@ class TestEventToDict:
     def test_availability_busy(self, patched_calendar: Any) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_event
+
         event = _make_mock_event(availability=0)
         result = cal._event_to_dict(event)
         assert result["availability"] == "busy"
@@ -190,6 +200,7 @@ class TestEventToDict:
     def test_availability_free(self, patched_calendar: Any) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_event
+
         event = _make_mock_event(availability=1)
         result = cal._event_to_dict(event)
         assert result["availability"] == "free"
@@ -197,6 +208,7 @@ class TestEventToDict:
     def test_availability_not_supported(self, patched_calendar: Any) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_event
+
         event = _make_mock_event(availability=-1)
         result = cal._event_to_dict(event)
         assert result["availability"] is None
@@ -204,6 +216,7 @@ class TestEventToDict:
     def test_status_confirmed(self, patched_calendar: Any) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_event
+
         event = _make_mock_event(status=1)
         result = cal._event_to_dict(event)
         assert result["status"] == "confirmed"
@@ -211,6 +224,7 @@ class TestEventToDict:
     def test_organizer(self, patched_calendar: Any) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_event, _make_mock_participant
+
         org = _make_mock_participant("Jane", "jane@example.com")
         event = _make_mock_event(organizer=org)
         result = cal._event_to_dict(event)
@@ -221,6 +235,7 @@ class TestEventToDict:
     def test_attendees(self, patched_calendar: Any) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_event, _make_mock_participant
+
         attendees = [
             _make_mock_participant("Bob", "bob@example.com", status=2, role=1),
             _make_mock_participant("Alice", "alice@example.com", status=4, role=2),
@@ -236,6 +251,7 @@ class TestEventToDict:
     def test_alarms_relative(self, patched_calendar: Any) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_event, _make_mock_alarm
+
         alarms = [
             _make_mock_alarm(relative_offset=-900),
             _make_mock_alarm(relative_offset=-3600),
@@ -248,6 +264,7 @@ class TestEventToDict:
     def test_geo_from_struct_location(self, patched_calendar: Any) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_event
+
         struct_loc = MagicMock()
         geo_loc = MagicMock()
         coord = MagicMock()
@@ -264,6 +281,7 @@ class TestEventToDict:
     def test_no_geo(self, patched_calendar: Any) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_event
+
         event = _make_mock_event(struct_location=None)
         result = cal._event_to_dict(event)
         assert result["geo"] is None
@@ -271,6 +289,7 @@ class TestEventToDict:
     def test_url(self, patched_calendar: Any) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_event
+
         event = _make_mock_event(url_str="https://meet.example.com/123")
         result = cal._event_to_dict(event)
         assert result["url"] == "https://meet.example.com/123"
@@ -278,6 +297,7 @@ class TestEventToDict:
     def test_timezone(self, patched_calendar: Any) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_event
+
         event = _make_mock_event(timezone_name="America/New_York")
         result = cal._event_to_dict(event)
         assert result["timezone"] == "America/New_York"
@@ -285,6 +305,7 @@ class TestEventToDict:
     def test_created_modified(self, patched_calendar: Any) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_event
+
         event = _make_mock_event(
             created_iso="2026-03-18T09:00:00",
             modified_iso="2026-03-18T15:00:00",
@@ -314,13 +335,30 @@ class TestEventToDict:
     def test_all_fields_present(self, patched_calendar: Any) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_event
+
         event = _make_mock_event()
         result = cal._event_to_dict(event)
         expected_keys = {
-            "id", "title", "start", "end", "all_day", "location", "geo",
-            "notes", "calendar", "url", "availability", "status", "organizer",
-            "attendees", "alarms", "rrule", "timezone", "is_detached",
-            "created", "modified",
+            "id",
+            "title",
+            "start",
+            "end",
+            "all_day",
+            "location",
+            "geo",
+            "notes",
+            "calendar",
+            "url",
+            "availability",
+            "status",
+            "organizer",
+            "attendees",
+            "alarms",
+            "rrule",
+            "timezone",
+            "is_detached",
+            "created",
+            "modified",
         }
         assert expected_keys.issubset(result.keys())
 
@@ -329,10 +367,12 @@ class TestEventToDict:
 # list_calendars
 # ---------------------------------------------------------------------------
 
+
 class TestListCalendars:
     def test_returns_list(self, patched_calendar: Any, mock_store: MagicMock) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_calendar
+
         mock_store.calendarsForEntityType_.return_value = [
             _make_mock_calendar("Work", "cal-1"),
             _make_mock_calendar("Personal", "cal-2"),
@@ -346,6 +386,7 @@ class TestListCalendars:
     def test_returns_ids(self, patched_calendar: Any, mock_store: MagicMock) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_calendar
+
         mock_store.calendarsForEntityType_.return_value = [
             _make_mock_calendar("Work", "cal-abc"),
         ]
@@ -357,18 +398,26 @@ class TestListCalendars:
 # list_events
 # ---------------------------------------------------------------------------
 
+
 class TestListEvents:
     def test_returns_events(self, patched_calendar: Any, mock_store: MagicMock) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_event
-        events = [_make_mock_event("e1", "Meeting 1"), _make_mock_event("e2", "Meeting 2")]
+
+        events = [
+            _make_mock_event("e1", "Meeting 1"),
+            _make_mock_event("e2", "Meeting 2"),
+        ]
         mock_store.eventsMatchingPredicate_.return_value = events
         result = cal.list_events("2026-03-01", "2026-03-31")
         assert len(result) == 2
 
-    def test_unknown_calendar_returns_empty(self, patched_calendar: Any, mock_store: MagicMock) -> None:
+    def test_unknown_calendar_returns_empty(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_calendar
+
         mock_store.calendarsForEntityType_.return_value = [_make_mock_calendar("Work")]
         result = cal.list_events("2026-03-01", "2026-03-31", calendar="NonExistent")
         assert result == []
@@ -381,17 +430,23 @@ class TestListEvents:
         # We need to test the actual date comparison logic.
         # Patch _ns_date to return objects with predictable compare_ results.
         from tests.conftest import _make_ns_date_mock
+
         early = _make_ns_date_mock("2026-03-01T00:00:00")
         late = _make_ns_date_mock("2026-03-31T00:00:00")
 
         with patch.object(real_cal, "_ns_date") as mock_ns_date:
             mock_ns_date.side_effect = [late, early]  # from > to
-            with pytest.raises(DateParseError, match="Start date must be before end date"):
+            with pytest.raises(
+                DateParseError, match="Start date must be before end date"
+            ):
                 real_cal.list_events("2026-03-31", "2026-03-01")
 
-    def test_filtered_by_calendar(self, patched_calendar: Any, mock_store: MagicMock) -> None:
+    def test_filtered_by_calendar(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_event, _make_mock_calendar
+
         events = [_make_mock_event("e1", "Work Meeting")]
         mock_store.eventsMatchingPredicate_.return_value = events
         work_cal = _make_mock_calendar("Work")
@@ -404,10 +459,14 @@ class TestListEvents:
 # search_events
 # ---------------------------------------------------------------------------
 
+
 class TestSearchEvents:
-    def test_search_by_title(self, patched_calendar: Any, mock_store: MagicMock) -> None:
+    def test_search_by_title(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_event
+
         events = [
             _make_mock_event("e1", "Team Standup"),
             _make_mock_event("e2", "Dentist Appointment"),
@@ -417,9 +476,12 @@ class TestSearchEvents:
         assert len(result) == 1
         assert result[0]["title"] == "Team Standup"
 
-    def test_search_by_notes(self, patched_calendar: Any, mock_store: MagicMock) -> None:
+    def test_search_by_notes(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_event
+
         events = [
             _make_mock_event("e1", "Meeting", notes="quarterly review"),
         ]
@@ -427,25 +489,34 @@ class TestSearchEvents:
         result = cal.search_events("quarterly")
         assert len(result) == 1
 
-    def test_search_no_results(self, patched_calendar: Any, mock_store: MagicMock) -> None:
+    def test_search_no_results(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_event
+
         events = [_make_mock_event("e1", "Team Standup")]
         mock_store.eventsMatchingPredicate_.return_value = events
         result = cal.search_events("xyznotfound")
         assert result == []
 
-    def test_search_with_calendar_filter(self, patched_calendar: Any, mock_store: MagicMock) -> None:
+    def test_search_with_calendar_filter(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_calendar
+
         mock_store.calendarsForEntityType_.return_value = [_make_mock_calendar("Work")]
         mock_store.eventsMatchingPredicate_.return_value = []
         result = cal.search_events("meeting", calendar="Work")
         assert result == []
 
-    def test_search_unknown_calendar_returns_empty(self, patched_calendar: Any, mock_store: MagicMock) -> None:
+    def test_search_unknown_calendar_returns_empty(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_calendar
+
         mock_store.calendarsForEntityType_.return_value = [_make_mock_calendar("Work")]
         result = cal.search_events("meeting", calendar="NonExistent")
         assert result == []
@@ -455,17 +526,21 @@ class TestSearchEvents:
 # get_event
 # ---------------------------------------------------------------------------
 
+
 class TestGetEvent:
     def test_returns_event(self, patched_calendar: Any, mock_store: MagicMock) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_event
+
         event = _make_mock_event("evt-abc", "Test Event")
         mock_store.eventWithIdentifier_.return_value = event
         result = cal.get_event("evt-abc")
         assert result["id"] == "evt-abc"
         assert result["title"] == "Test Event"
 
-    def test_raises_event_not_found(self, patched_calendar: Any, mock_store: MagicMock) -> None:
+    def test_raises_event_not_found(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
         cal = _get_cal(patched_calendar)
         mock_store.eventWithIdentifier_.return_value = None
         with pytest.raises(EventNotFoundError, match="Event not found"):
@@ -476,10 +551,14 @@ class TestGetEvent:
 # create_event
 # ---------------------------------------------------------------------------
 
+
 class TestCreateEvent:
-    def test_creates_event_basic(self, patched_calendar: Any, mock_store: MagicMock, mock_eventkit: MagicMock) -> None:
+    def test_creates_event_basic(
+        self, patched_calendar: Any, mock_store: MagicMock, mock_eventkit: MagicMock
+    ) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_event, _make_mock_calendar
+
         new_event = _make_mock_event("new-evt", "New Meeting")
         mock_eventkit.EKEvent.eventWithEventStore_.return_value = new_event
         mock_store.saveEvent_span_error_.return_value = (True, None)
@@ -490,19 +569,27 @@ class TestCreateEvent:
         assert result["title"] == "New Meeting"
         assert result["_action"] == "created"
 
-    def test_raises_calendar_not_found(self, patched_calendar: Any, mock_store: MagicMock, mock_eventkit: MagicMock) -> None:
+    def test_raises_calendar_not_found(
+        self, patched_calendar: Any, mock_store: MagicMock, mock_eventkit: MagicMock
+    ) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_event, _make_mock_calendar
+
         new_event = _make_mock_event()
         mock_eventkit.EKEvent.eventWithEventStore_.return_value = new_event
-        mock_store.calendarsForEntityType_.return_value = [_make_mock_calendar("Personal")]
+        mock_store.calendarsForEntityType_.return_value = [
+            _make_mock_calendar("Personal")
+        ]
 
         with pytest.raises(CalendarNotFoundError, match="Calendar not found"):
             cal.create_event("Meeting", "2026-03-20T10:00:00", calendar="NonExistent")
 
-    def test_raises_event_save_error(self, patched_calendar: Any, mock_store: MagicMock, mock_eventkit: MagicMock) -> None:
+    def test_raises_event_save_error(
+        self, patched_calendar: Any, mock_store: MagicMock, mock_eventkit: MagicMock
+    ) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_event
+
         new_event = _make_mock_event()
         mock_eventkit.EKEvent.eventWithEventStore_.return_value = new_event
         err = MagicMock()
@@ -512,7 +599,9 @@ class TestCreateEvent:
         with pytest.raises(EventSaveError, match="Failed to save event"):
             cal.create_event("Meeting", "2026-03-20T10:00:00")
 
-    def test_end_before_start_raises(self, patched_calendar: Any, mock_store: MagicMock, mock_eventkit: MagicMock) -> None:
+    def test_end_before_start_raises(
+        self, patched_calendar: Any, mock_store: MagicMock, mock_eventkit: MagicMock
+    ) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_event
         import calctl.calendar as real_cal
@@ -521,50 +610,68 @@ class TestCreateEvent:
         mock_eventkit.EKEvent.eventWithEventStore_.return_value = new_event
 
         from tests.conftest import _make_ns_date_mock
+
         start_ns = _make_ns_date_mock("2026-03-20T11:00:00")
         end_ns = _make_ns_date_mock("2026-03-20T09:00:00")
 
         with patch.object(real_cal, "_ns_date") as mock_ns_date:
             mock_ns_date.side_effect = [start_ns, end_ns]
-            with pytest.raises(DateParseError, match="End time must be after start time"):
-                real_cal.create_event("Meeting", "2026-03-20T11:00:00", end="2026-03-20T09:00:00")
+            with pytest.raises(
+                DateParseError, match="End time must be after start time"
+            ):
+                real_cal.create_event(
+                    "Meeting", "2026-03-20T11:00:00", end="2026-03-20T09:00:00"
+                )
 
-    def test_creates_with_alarms(self, patched_calendar: Any, mock_store: MagicMock, mock_eventkit: MagicMock) -> None:
+    def test_creates_with_alarms(
+        self, patched_calendar: Any, mock_store: MagicMock, mock_eventkit: MagicMock
+    ) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_event
-        new_event = _make_mock_event()
-        mock_eventkit.EKEvent.eventWithEventStore_.return_value = new_event
-        mock_store.saveEvent_span_error_.return_value = (True, None)
 
-        result = cal.create_event("Meeting", "2026-03-20T10:00:00", alarms=["-15m", "-1h"])
-        assert result["_action"] == "created"
-        new_event.setAlarms_.assert_called()
-
-    def test_creates_with_geo(self, patched_calendar: Any, mock_store: MagicMock, mock_eventkit: MagicMock) -> None:
-        cal = _get_cal(patched_calendar)
-        from tests.conftest import _make_mock_event
         new_event = _make_mock_event()
         mock_eventkit.EKEvent.eventWithEventStore_.return_value = new_event
         mock_store.saveEvent_span_error_.return_value = (True, None)
 
         result = cal.create_event(
-            "Meeting", "2026-03-20T10:00:00",
-            location="HQ", geo="37.7749,-122.4194"
+            "Meeting", "2026-03-20T10:00:00", alarms=["-15m", "-1h"]
+        )
+        assert result["_action"] == "created"
+        new_event.setAlarms_.assert_called()
+
+    def test_creates_with_geo(
+        self, patched_calendar: Any, mock_store: MagicMock, mock_eventkit: MagicMock
+    ) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_event
+
+        new_event = _make_mock_event()
+        mock_eventkit.EKEvent.eventWithEventStore_.return_value = new_event
+        mock_store.saveEvent_span_error_.return_value = (True, None)
+
+        result = cal.create_event(
+            "Meeting", "2026-03-20T10:00:00", location="HQ", geo="37.7749,-122.4194"
         )
         assert result["_action"] == "created"
         new_event.setStructuredLocation_.assert_called()
 
-    def test_invalid_availability_raises(self, patched_calendar: Any, mock_store: MagicMock, mock_eventkit: MagicMock) -> None:
+    def test_invalid_availability_raises(
+        self, patched_calendar: Any, mock_store: MagicMock, mock_eventkit: MagicMock
+    ) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_event
+
         mock_eventkit.EKEvent.eventWithEventStore_.return_value = _make_mock_event()
 
         with pytest.raises(CalctlError, match="Invalid availability"):
             cal.create_event("Meeting", "2026-03-20T10:00:00", availability="invalid")
 
-    def test_default_end_one_hour_after(self, patched_calendar: Any, mock_store: MagicMock, mock_eventkit: MagicMock) -> None:
+    def test_default_end_one_hour_after(
+        self, patched_calendar: Any, mock_store: MagicMock, mock_eventkit: MagicMock
+    ) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_event
+
         new_event = _make_mock_event()
         mock_eventkit.EKEvent.eventWithEventStore_.return_value = new_event
         mock_store.saveEvent_span_error_.return_value = (True, None)
@@ -577,10 +684,12 @@ class TestCreateEvent:
 # edit_event
 # ---------------------------------------------------------------------------
 
+
 class TestEditEvent:
     def test_edits_title(self, patched_calendar: Any, mock_store: MagicMock) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_event
+
         event = _make_mock_event("e1", "Old Title")
         mock_store.eventWithIdentifier_.return_value = event
         mock_store.saveEvent_span_error_.return_value = (True, None)
@@ -589,15 +698,20 @@ class TestEditEvent:
         assert result["_action"] == "updated"
         event.setTitle_.assert_called_with("New Title")
 
-    def test_raises_event_not_found(self, patched_calendar: Any, mock_store: MagicMock) -> None:
+    def test_raises_event_not_found(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
         cal = _get_cal(patched_calendar)
         mock_store.eventWithIdentifier_.return_value = None
         with pytest.raises(EventNotFoundError):
             cal.edit_event("nonexistent", title="New")
 
-    def test_raises_save_error(self, patched_calendar: Any, mock_store: MagicMock) -> None:
+    def test_raises_save_error(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_event
+
         event = _make_mock_event("e1")
         mock_store.eventWithIdentifier_.return_value = event
         err = MagicMock()
@@ -610,6 +724,7 @@ class TestEditEvent:
     def test_calendar_move(self, patched_calendar: Any, mock_store: MagicMock) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_event, _make_mock_calendar
+
         event = _make_mock_event("e1")
         mock_store.eventWithIdentifier_.return_value = event
         mock_store.saveEvent_span_error_.return_value = (True, None)
@@ -623,9 +738,12 @@ class TestEditEvent:
         assert result["_action"] == "updated"
         event.setCalendar_.assert_called_with(personal_cal)
 
-    def test_calendar_move_not_found_raises(self, patched_calendar: Any, mock_store: MagicMock) -> None:
+    def test_calendar_move_not_found_raises(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_event, _make_mock_calendar
+
         event = _make_mock_event("e1")
         mock_store.eventWithIdentifier_.return_value = event
         mock_store.calendarsForEntityType_.return_value = [_make_mock_calendar("Work")]
@@ -633,9 +751,12 @@ class TestEditEvent:
         with pytest.raises(CalendarNotFoundError):
             cal.edit_event("e1", calendar="NonExistent")
 
-    def test_span_future(self, patched_calendar: Any, mock_store: MagicMock, mock_eventkit: MagicMock) -> None:
+    def test_span_future(
+        self, patched_calendar: Any, mock_store: MagicMock, mock_eventkit: MagicMock
+    ) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_event
+
         event = _make_mock_event("e1")
         mock_store.eventWithIdentifier_.return_value = event
         mock_store.saveEvent_span_error_.return_value = (True, None)
@@ -648,6 +769,7 @@ class TestEditEvent:
     def test_clear_notes(self, patched_calendar: Any, mock_store: MagicMock) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_event
+
         event = _make_mock_event("e1", notes="old notes")
         mock_store.eventWithIdentifier_.return_value = event
         mock_store.saveEvent_span_error_.return_value = (True, None)
@@ -658,6 +780,7 @@ class TestEditEvent:
     def test_clear_rrule(self, patched_calendar: Any, mock_store: MagicMock) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_event, _make_mock_recurrence_rule
+
         rule = _make_mock_recurrence_rule()
         event = _make_mock_event("e1", recurrence_rules=[rule])
         mock_store.eventWithIdentifier_.return_value = event
@@ -669,6 +792,7 @@ class TestEditEvent:
     def test_clear_alarms(self, patched_calendar: Any, mock_store: MagicMock) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_event, _make_mock_alarm
+
         alarms = [_make_mock_alarm(relative_offset=-900)]
         event = _make_mock_event("e1", alarms=alarms)
         mock_store.eventWithIdentifier_.return_value = event
@@ -680,6 +804,7 @@ class TestEditEvent:
     def test_clear_url(self, patched_calendar: Any, mock_store: MagicMock) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_event
+
         event = _make_mock_event("e1", url_str="https://old.example.com")
         mock_store.eventWithIdentifier_.return_value = event
         mock_store.saveEvent_span_error_.return_value = (True, None)
@@ -690,6 +815,7 @@ class TestEditEvent:
     def test_clear_timezone(self, patched_calendar: Any, mock_store: MagicMock) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_event
+
         event = _make_mock_event("e1", timezone_name="America/New_York")
         mock_store.eventWithIdentifier_.return_value = event
         mock_store.saveEvent_span_error_.return_value = (True, None)
@@ -700,6 +826,7 @@ class TestEditEvent:
     def test_clear_geo(self, patched_calendar: Any, mock_store: MagicMock) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_event
+
         event = _make_mock_event("e1")
         mock_store.eventWithIdentifier_.return_value = event
         mock_store.saveEvent_span_error_.return_value = (True, None)
@@ -707,7 +834,9 @@ class TestEditEvent:
         cal.edit_event("e1", geo="")
         event.setStructuredLocation_.assert_called_with(None)
 
-    def test_end_before_start_raises(self, patched_calendar: Any, mock_store: MagicMock) -> None:
+    def test_end_before_start_raises(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
         cal = _get_cal(patched_calendar)
         import calctl.calendar as real_cal
         from tests.conftest import _make_mock_event, _make_ns_date_mock
@@ -721,7 +850,9 @@ class TestEditEvent:
         event.startDate.return_value = late
 
         with patch.object(real_cal, "_ns_date", return_value=early):
-            with pytest.raises(DateParseError, match="End time must be after start time"):
+            with pytest.raises(
+                DateParseError, match="End time must be after start time"
+            ):
                 real_cal.edit_event("e1", end="2026-03-20T09:00:00")
 
 
@@ -729,10 +860,12 @@ class TestEditEvent:
 # delete_event
 # ---------------------------------------------------------------------------
 
+
 class TestDeleteEvent:
     def test_deletes_event(self, patched_calendar: Any, mock_store: MagicMock) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_event
+
         event = _make_mock_event("e1", "Meeting")
         mock_store.eventWithIdentifier_.return_value = event
         mock_store.removeEvent_span_error_.return_value = (True, None)
@@ -741,15 +874,20 @@ class TestDeleteEvent:
         assert result["_action"] == "deleted"
         assert result["id"] == "e1"
 
-    def test_raises_event_not_found(self, patched_calendar: Any, mock_store: MagicMock) -> None:
+    def test_raises_event_not_found(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
         cal = _get_cal(patched_calendar)
         mock_store.eventWithIdentifier_.return_value = None
         with pytest.raises(EventNotFoundError):
             cal.delete_event("nonexistent")
 
-    def test_raises_save_error_on_delete_failure(self, patched_calendar: Any, mock_store: MagicMock) -> None:
+    def test_raises_save_error_on_delete_failure(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_event
+
         event = _make_mock_event("e1")
         mock_store.eventWithIdentifier_.return_value = event
         err = MagicMock()
@@ -759,9 +897,12 @@ class TestDeleteEvent:
         with pytest.raises(EventSaveError, match="Failed to delete event"):
             cal.delete_event("e1")
 
-    def test_span_future(self, patched_calendar: Any, mock_store: MagicMock, mock_eventkit: MagicMock) -> None:
+    def test_span_future(
+        self, patched_calendar: Any, mock_store: MagicMock, mock_eventkit: MagicMock
+    ) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_event
+
         event = _make_mock_event("e1")
         mock_store.eventWithIdentifier_.return_value = event
         mock_store.removeEvent_span_error_.return_value = (True, None)
@@ -771,9 +912,12 @@ class TestDeleteEvent:
             event, mock_eventkit.EKSpanFutureEvents, None
         )
 
-    def test_span_this_default(self, patched_calendar: Any, mock_store: MagicMock, mock_eventkit: MagicMock) -> None:
+    def test_span_this_default(
+        self, patched_calendar: Any, mock_store: MagicMock, mock_eventkit: MagicMock
+    ) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_event
+
         event = _make_mock_event("e1")
         mock_store.eventWithIdentifier_.return_value = event
         mock_store.removeEvent_span_error_.return_value = (True, None)
@@ -788,10 +932,12 @@ class TestDeleteEvent:
 # RRULE round-trip tests
 # ---------------------------------------------------------------------------
 
+
 class TestRrule:
     def test_ek_to_rrule_weekly(self, patched_calendar: Any) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_recurrence_rule
+
         rule = _make_mock_recurrence_rule(freq=1, interval=1)
         rule.recurrenceEnd.return_value = None
         result = cal._ek_to_rrule(rule)
@@ -800,6 +946,7 @@ class TestRrule:
     def test_ek_to_rrule_daily_with_count(self, patched_calendar: Any) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_recurrence_rule
+
         end = MagicMock()
         end.occurrenceCount.return_value = 10
         end.endDate.return_value = None
@@ -812,6 +959,7 @@ class TestRrule:
     def test_ek_to_rrule_with_byday(self, patched_calendar: Any) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_recurrence_rule
+
         days = []
         for day_int in [1, 3, 5]:  # MO, WE, FR
             d = MagicMock()
@@ -826,6 +974,7 @@ class TestRrule:
     def test_ek_to_rrule_monthly(self, patched_calendar: Any) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_recurrence_rule
+
         rule = _make_mock_recurrence_rule(freq=2, interval=1, days_of_month=[15])
         rule.recurrenceEnd.return_value = None
         result = cal._ek_to_rrule(rule)
@@ -835,6 +984,7 @@ class TestRrule:
     def test_ek_to_rrule_yearly(self, patched_calendar: Any) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_recurrence_rule
+
         rule = _make_mock_recurrence_rule(freq=3, interval=1, months_of_year=[3])
         rule.recurrenceEnd.return_value = None
         result = cal._ek_to_rrule(rule)
@@ -844,39 +994,55 @@ class TestRrule:
     def test_ek_to_rrule_with_interval(self, patched_calendar: Any) -> None:
         cal = _get_cal(patched_calendar)
         from tests.conftest import _make_mock_recurrence_rule
+
         rule = _make_mock_recurrence_rule(freq=1, interval=2)
         rule.recurrenceEnd.return_value = None
         result = cal._ek_to_rrule(rule)
         assert "INTERVAL=2" in result
 
-    def test_rrule_to_ek_weekly_byday(self, patched_calendar: Any, mock_eventkit: MagicMock) -> None:
+    def test_rrule_to_ek_weekly_byday(
+        self, patched_calendar: Any, mock_eventkit: MagicMock
+    ) -> None:
         cal = _get_cal(patched_calendar)
         import calctl.calendar as real_cal
+
         with patch.object(real_cal, "_import_eventkit", return_value=mock_eventkit):
             result = real_cal._rrule_to_ek("RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR")
             assert result is not None
 
-    def test_rrule_to_ek_daily_count(self, patched_calendar: Any, mock_eventkit: MagicMock) -> None:
+    def test_rrule_to_ek_daily_count(
+        self, patched_calendar: Any, mock_eventkit: MagicMock
+    ) -> None:
         cal = _get_cal(patched_calendar)
         import calctl.calendar as real_cal
+
         with patch.object(real_cal, "_import_eventkit", return_value=mock_eventkit):
             result = real_cal._rrule_to_ek("RRULE:FREQ=DAILY;COUNT=5")
             assert result is not None
 
-    def test_rrule_to_ek_invalid_raises(self, patched_calendar: Any, mock_eventkit: MagicMock) -> None:
+    def test_rrule_to_ek_invalid_raises(
+        self, patched_calendar: Any, mock_eventkit: MagicMock
+    ) -> None:
         import calctl.calendar as real_cal
+
         with patch.object(real_cal, "_import_eventkit", return_value=mock_eventkit):
             with pytest.raises(RRuleParseError, match="Invalid RRULE"):
                 real_cal._rrule_to_ek("RRULE:FREQ=INVALID_FREQ_XYZ")
 
-    def test_rrule_to_ek_monthly_bymonthday(self, patched_calendar: Any, mock_eventkit: MagicMock) -> None:
+    def test_rrule_to_ek_monthly_bymonthday(
+        self, patched_calendar: Any, mock_eventkit: MagicMock
+    ) -> None:
         import calctl.calendar as real_cal
+
         with patch.object(real_cal, "_import_eventkit", return_value=mock_eventkit):
             result = real_cal._rrule_to_ek("RRULE:FREQ=MONTHLY;BYMONTHDAY=15")
             assert result is not None
 
-    def test_rrule_to_ek_yearly(self, patched_calendar: Any, mock_eventkit: MagicMock) -> None:
+    def test_rrule_to_ek_yearly(
+        self, patched_calendar: Any, mock_eventkit: MagicMock
+    ) -> None:
         import calctl.calendar as real_cal
+
         with patch.object(real_cal, "_import_eventkit", return_value=mock_eventkit):
             result = real_cal._rrule_to_ek("RRULE:FREQ=YEARLY;BYMONTH=3;BYMONTHDAY=15")
             assert result is not None

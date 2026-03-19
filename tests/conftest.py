@@ -13,8 +13,10 @@ import pytest
 # EventKit / Foundation / CoreLocation mocks
 # ---------------------------------------------------------------------------
 
+
 class _NSComparisonResult:
     """Simulate NSComparisonResult constants."""
+
     NSOrderedAscending = -1
     NSOrderedSame = 0
     NSOrderedDescending = 1
@@ -24,6 +26,7 @@ def _make_ns_date_mock(iso: str) -> MagicMock:
     """Return a MagicMock that pretends to be an NSDate for a given ISO string."""
     m = MagicMock(name=f"NSDate({iso})")
     m._iso = iso
+
     # compare_ returns NSOrderedAscending when self < other
     def _compare(other: MagicMock) -> int:
         s = getattr(m, "_iso", "")
@@ -33,6 +36,7 @@ def _make_ns_date_mock(iso: str) -> MagicMock:
         if s > o:
             return 1
         return 0
+
     m.compare_ = _compare
     m.dateByAddingTimeInterval_ = lambda secs: _make_ns_date_mock(iso)
     return m
@@ -45,7 +49,9 @@ def _make_mock_calendar(name: str = "Work", cal_id: str = "cal-001") -> MagicMoc
     return c
 
 
-def _make_mock_alarm(relative_offset: int | None = None, absolute_iso: str | None = None) -> MagicMock:
+def _make_mock_alarm(
+    relative_offset: int | None = None, absolute_iso: str | None = None
+) -> MagicMock:
     alarm = MagicMock(name="EKAlarm")
     if absolute_iso:
         alarm.absoluteDate.return_value = _make_ns_date_mock(absolute_iso)
@@ -57,7 +63,7 @@ def _make_mock_alarm(relative_offset: int | None = None, absolute_iso: str | Non
 
 
 def _make_mock_recurrence_rule(
-    freq: int = 1,         # 1 = WEEKLY
+    freq: int = 1,  # 1 = WEEKLY
     interval: int = 1,
     days_of_week: list[Any] | None = None,
     days_of_month: list[int] | None = None,
@@ -79,8 +85,8 @@ def _make_mock_recurrence_rule(
 def _make_mock_participant(
     name: str = "Alice",
     email: str = "alice@example.com",
-    status: int = 2,   # accepted
-    role: int = 1,     # required
+    status: int = 2,  # accepted
+    role: int = 1,  # required
 ) -> MagicMock:
     p = MagicMock(name=f"EKParticipant({name})")
     p.name.return_value = name
@@ -102,8 +108,8 @@ def _make_mock_event(
     notes: str = "",
     url_str: str = "",
     calendar_name: str = "Work",
-    availability: int = 0,     # busy
-    status: int = 1,           # confirmed
+    availability: int = 0,  # busy
+    status: int = 1,  # confirmed
     organizer: Any = None,
     attendees: list[Any] | None = None,
     alarms: list[Any] | None = None,
@@ -130,8 +136,12 @@ def _make_mock_event(
     event.alarms.return_value = alarms or []
     event.recurrenceRules.return_value = recurrence_rules or []
     event.isDetached.return_value = is_detached
-    event.creationDate.return_value = _make_ns_date_mock(created_iso) if created_iso else None
-    event.lastModifiedDate.return_value = _make_ns_date_mock(modified_iso) if modified_iso else None
+    event.creationDate.return_value = (
+        _make_ns_date_mock(created_iso) if created_iso else None
+    )
+    event.lastModifiedDate.return_value = (
+        _make_ns_date_mock(modified_iso) if modified_iso else None
+    )
     event.calendar.return_value = _make_mock_calendar(calendar_name)
     event.timeZone.return_value = None
 
@@ -200,8 +210,12 @@ def _make_eventkit_module(store: MagicMock) -> MagicMock:
 
     # EKAlarm
     alarm_class = MagicMock(name="EKAlarm_class")
-    alarm_class.alarmWithRelativeOffset_.side_effect = lambda offset: _make_mock_alarm(relative_offset=int(offset))
-    alarm_class.alarmWithAbsoluteDate_.side_effect = lambda d: _make_mock_alarm(absolute_iso=getattr(d, "_iso", "2026-01-01T00:00:00"))
+    alarm_class.alarmWithRelativeOffset_.side_effect = lambda offset: _make_mock_alarm(
+        relative_offset=int(offset)
+    )
+    alarm_class.alarmWithAbsoluteDate_.side_effect = lambda d: _make_mock_alarm(
+        absolute_iso=getattr(d, "_iso", "2026-01-01T00:00:00")
+    )
     ek.EKAlarm = alarm_class
 
     # EKRecurrenceRule
@@ -214,32 +228,38 @@ def _make_eventkit_module(store: MagicMock) -> MagicMock:
 
     # EKRecurrenceDayOfWeek
     dow_class = MagicMock(name="EKRecurrenceDayOfWeek_class")
+
     def _make_dow(day: int) -> MagicMock:
         d = MagicMock(name=f"EKRecurrenceDayOfWeek({day})")
         d.dayOfTheWeek.return_value = day
         d.weekNumber.return_value = 0
         return d
+
     def _make_dow_with_week(day: int, week: int) -> MagicMock:
         d = MagicMock(name=f"EKRecurrenceDayOfWeek({day},{week})")
         d.dayOfTheWeek.return_value = day
         d.weekNumber.return_value = week
         return d
+
     dow_class.dayOfWeek_.side_effect = _make_dow
     dow_class.dayOfWeek_weekNumber_.side_effect = _make_dow_with_week
     ek.EKRecurrenceDayOfWeek = dow_class
 
     # EKRecurrenceEnd
     end_class = MagicMock(name="EKRecurrenceEnd_class")
+
     def _make_end_count(count: int) -> MagicMock:
         e = MagicMock(name=f"EKRecurrenceEnd(count={count})")
         e.occurrenceCount.return_value = count
         e.endDate.return_value = None
         return e
+
     def _make_end_date(d: Any) -> MagicMock:
         e = MagicMock(name=f"EKRecurrenceEnd(date)")
         e.endDate.return_value = d
         e.occurrenceCount.return_value = 0
         return e
+
     end_class.recurrenceEndWithOccurrenceCount_.side_effect = _make_end_count
     end_class.recurrenceEndWithEndDate_.side_effect = _make_end_date
     ek.EKRecurrenceEnd = end_class
@@ -268,7 +288,9 @@ def _make_foundation_module() -> MagicMock:
     formatter_instance = MagicMock(name="NSDateFormatter_instance")
     # dateFromString_ returns a mock NSDate based on the string
     formatter_instance.dateFromString_.side_effect = lambda s: _make_ns_date_mock(s)
-    formatter_instance.stringFromDate_.side_effect = lambda d: getattr(d, "_iso", "2026-01-01T00:00:00")
+    formatter_instance.stringFromDate_.side_effect = lambda d: getattr(
+        d, "_iso", "2026-01-01T00:00:00"
+    )
     formatter.alloc.return_value.init.return_value = formatter_instance
     fd.NSDateFormatter = formatter
 
@@ -286,7 +308,9 @@ def _make_foundation_module() -> MagicMock:
     date_class = MagicMock(name="NSDate")
     now = _make_ns_date_mock("2026-03-19T12:00:00")
     date_class.date.return_value = now
-    date_class.dateWithTimeIntervalSinceNow_.return_value = _make_ns_date_mock("2026-03-19T12:00:15")
+    date_class.dateWithTimeIntervalSinceNow_.return_value = _make_ns_date_mock(
+        "2026-03-19T12:00:15"
+    )
     fd.NSDate = date_class
 
     # NSRunLoop
@@ -307,6 +331,7 @@ def _make_corelocation_module() -> MagicMock:
     """Build a mock CoreLocation module."""
     cl = MagicMock(name="CoreLocation")
     cl_loc_class = MagicMock(name="CLLocation_class")
+
     def _make_cl_loc(lat: float, lng: float) -> MagicMock:
         loc = MagicMock(name=f"CLLocation({lat},{lng})")
         coord = MagicMock()
@@ -314,7 +339,10 @@ def _make_corelocation_module() -> MagicMock:
         coord.longitude = lng
         loc.coordinate.return_value = coord
         return loc
-    cl_loc_class.alloc.return_value.initWithLatitude_longitude_.side_effect = _make_cl_loc
+
+    cl_loc_class.alloc.return_value.initWithLatitude_longitude_.side_effect = (
+        _make_cl_loc
+    )
     cl.CLLocation = cl_loc_class
     return cl
 
@@ -362,7 +390,9 @@ def patched_calendar(
     with (
         patch.object(cal_module, "_import_eventkit", return_value=mock_eventkit),
         patch.object(cal_module, "_import_foundation", return_value=mock_foundation),
-        patch.object(cal_module, "_import_corelocation", return_value=mock_corelocation),
+        patch.object(
+            cal_module, "_import_corelocation", return_value=mock_corelocation
+        ),
         patch.object(cal_module, "_get_store", side_effect=_instant_store),
     ):
         yield cal_module

@@ -27,18 +27,22 @@ logger = logging.getLogger(__name__)
 # Lazy imports for PyObjC (macOS only)
 # ---------------------------------------------------------------------------
 
+
 def _import_eventkit() -> Any:
     import EventKit  # type: ignore[import-untyped]
+
     return EventKit
 
 
 def _import_foundation() -> Any:
     import Foundation  # type: ignore[import-untyped]
+
     return Foundation
 
 
 def _import_corelocation() -> Any:
     import CoreLocation  # type: ignore[import-untyped]
+
     return CoreLocation
 
 
@@ -47,10 +51,10 @@ def _import_corelocation() -> Any:
 # ---------------------------------------------------------------------------
 
 AVAILABILITY_MAP: dict[str, int] = {
-    "busy": 0,      # EKEventAvailabilityBusy
-    "free": 1,      # EKEventAvailabilityFree
-    "tentative": 2, # EKEventAvailabilityTentative
-    "unavailable": 3, # EKEventAvailabilityUnavailable
+    "busy": 0,  # EKEventAvailabilityBusy
+    "free": 1,  # EKEventAvailabilityFree
+    "tentative": 2,  # EKEventAvailabilityTentative
+    "unavailable": 3,  # EKEventAvailabilityUnavailable
 }
 
 AVAILABILITY_REVERSE: dict[int, str | None] = {
@@ -273,6 +277,7 @@ def _rrule_to_ek(rrule_str: str) -> Any:
 
     try:
         from dateutil.rrule import rrulestr  # type: ignore[import-untyped]
+
         rule = rrulestr(rrule_str, ignoretz=True)
     except Exception as exc:
         raise RRuleParseError(f"Invalid RRULE: {rrule_str!r} — {exc}") from exc
@@ -368,8 +373,8 @@ def _rrule_to_ek(rrule_str: str) -> Any:
         days_of_week,
         days_of_month,
         months_of_year,
-        None,   # weeksOfTheYear
-        None,   # daysOfTheYear
+        None,  # weeksOfTheYear
+        None,  # daysOfTheYear
         set_positions,
         recurrence_end,
     )
@@ -576,10 +581,7 @@ def list_calendars() -> list[dict[str, str]]:
     EventKit = _import_eventkit()
     store = _get_store()
     cals = store.calendarsForEntityType_(EventKit.EKEntityTypeEvent)
-    return [
-        {"name": str(c.title()), "id": str(c.calendarIdentifier())}
-        for c in cals
-    ]
+    return [{"name": str(c.title()), "id": str(c.calendarIdentifier())} for c in cals]
 
 
 def list_events(
@@ -602,9 +604,7 @@ def list_events(
     calendars = None
     if calendar:
         all_cals = store.calendarsForEntityType_(EventKit.EKEntityTypeEvent)
-        calendars = [
-            c for c in all_cals if str(c.title()).lower() == calendar.lower()
-        ]
+        calendars = [c for c in all_cals if str(c.title()).lower() == calendar.lower()]
         if not calendars:
             logger.debug("Calendar %r not found, returning empty list", calendar)
             return []
@@ -630,20 +630,14 @@ def search_events(
 
     now = Foundation.NSDate.date()
     start = (
-        _ns_date(from_date) if from_date
-        else now.dateByAddingTimeInterval_(-30 * 86400)
+        _ns_date(from_date) if from_date else now.dateByAddingTimeInterval_(-30 * 86400)
     )
-    end = (
-        _ns_date(to_date) if to_date
-        else now.dateByAddingTimeInterval_(90 * 86400)
-    )
+    end = _ns_date(to_date) if to_date else now.dateByAddingTimeInterval_(90 * 86400)
 
     calendars = None
     if calendar:
         all_cals = store.calendarsForEntityType_(EventKit.EKEntityTypeEvent)
-        cal_list = [
-            c for c in all_cals if str(c.title()).lower() == calendar.lower()
-        ]
+        cal_list = [c for c in all_cals if str(c.title()).lower() == calendar.lower()]
         if not cal_list:
             return []
         calendars = cal_list
@@ -748,9 +742,7 @@ def create_event(  # noqa: PLR0912, PLR0913
     # Calendar assignment
     if calendar:
         all_cals = store.calendarsForEntityType_(EventKit.EKEntityTypeEvent)
-        matching = [
-            c for c in all_cals if str(c.title()).lower() == calendar.lower()
-        ]
+        matching = [c for c in all_cals if str(c.title()).lower() == calendar.lower()]
         if not matching:
             raise CalendarNotFoundError(f"Calendar not found: {calendar!r}")
         event.setCalendar_(matching[0])
@@ -758,9 +750,7 @@ def create_event(  # noqa: PLR0912, PLR0913
         event.setCalendar_(store.defaultCalendarForNewEvents())
 
     logger.debug("Saving new event: %s", title)
-    success, error = store.saveEvent_span_error_(
-        event, EventKit.EKSpanThisEvent, None
-    )
+    success, error = store.saveEvent_span_error_(event, EventKit.EKSpanThisEvent, None)
     if not success:
         err_msg = str(error.localizedDescription()) if error else "Unknown error"
         raise EventSaveError(f"Failed to save event: {err_msg}")
@@ -860,9 +850,7 @@ def edit_event(  # noqa: PLR0912, PLR0913
 
     if calendar is not None:
         all_cals = store.calendarsForEntityType_(EventKit.EKEntityTypeEvent)
-        matching = [
-            c for c in all_cals if str(c.title()).lower() == calendar.lower()
-        ]
+        matching = [c for c in all_cals if str(c.title()).lower() == calendar.lower()]
         if not matching:
             raise CalendarNotFoundError(f"Calendar not found: {calendar!r}")
         event.setCalendar_(matching[0])
