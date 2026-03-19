@@ -23,10 +23,10 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "pyobjc-framework-EventKit>=11.0",
-    "pyobjc-framework-CoreLocation>=11.0",
-    "python-dateutil>=2.9",
-    "typer>=0.15",
+    "pyobjc-framework-EventKit>=12.1",
+    "pyobjc-framework-CoreLocation>=12.1",
+    "python-dateutil>=2.9.0.post0",
+    "typer>=0.24.1",
 ]
 
 [project.scripts]
@@ -44,9 +44,9 @@ build-backend = "hatchling.build"
 [dependency-groups]
 dev = [
     "ruff>=0.15.6",
-    "pyright>=1.1",
-    "pytest>=8.0",
-    "pytest-mock>=3.14",
+    "pyright>=1.1.408",
+    "pytest>=9.0.2",
+    "pytest-mock>=3.15.1",
 ]
 
 [tool.ruff]
