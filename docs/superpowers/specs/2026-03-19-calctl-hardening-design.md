@@ -25,8 +25,6 @@
 │   ├── test_calendar.py
 │   ├── test_cli.py
 │   └── test_formatting.py
-└── Formula/
-    └── calctl.rb        # Homebrew formula (new)
 ```
 
 ## 1. Error Handling (`errors.py`)
@@ -563,7 +561,7 @@ uv run pytest                      # Tests
 A proper README for PyPI/GitHub with:
 - One-line description and badges (PyPI version, Python version, License)
 - Feature list (what calctl does)
-- Installation: `pip install calctl` / `brew install ukaratay/tap/calctl`
+- Installation: `pipx install calctl` or `uv tool install calctl`
 - Quick start examples (list calendars, list events, create, search, show, edit, delete)
 - Full CLI reference (all commands, all flags with descriptions)
 - macOS permissions note (System Settings → Privacy & Security → Calendars)
@@ -576,44 +574,9 @@ MIT license file with copyright `Umur Karatay`.
 ### PyPI Publishing
 
 - Build with `uv build` (produces sdist + wheel via hatchling)
-- Publish with `uv publish` (or `twine upload`)
+- Publish with `uv publish`
 - The `py.typed` marker file is already present for PEP 561 typed package support
 - Version managed in `pyproject.toml` (`version = "0.1.0"`)
-
-### Homebrew Formula (`Formula/calctl.rb`)
-
-A Homebrew formula for the `ukaratay/tap` tap:
-
-```ruby
-class Calctl < Formula
-  include Language::Python::Virtualenv
-
-  desc "macOS Calendar CLI using EventKit"
-  homepage "https://github.com/ukaratay/calctl"
-  url "https://files.pythonhosted.org/packages/source/c/calctl/calctl-VERSION.tar.gz"
-  sha256 "SHA256"
-  license "MIT"
-
-  depends_on :macos
-  depends_on "python@3.12"
-
-  # resource blocks for each dependency (generated from uv export)
-
-  def install
-    virtualenv_install_with_resources
-  end
-
-  test do
-    assert_match "Usage", shell_output("#{bin}/calctl --help")
-  end
-end
-```
-
-**Homebrew tap setup:**
-1. Create repo `ukaratay/homebrew-tap` on GitHub
-2. Place formula at `Formula/calctl.rb` in that repo
-3. Users install with: `brew tap ukaratay/tap && brew install calctl`
-4. Formula is updated after each PyPI release (update URL, sha256, resource blocks)
 
 ### Release Workflow
 
@@ -622,5 +585,8 @@ end
 3. Commit, tag (`git tag v0.1.0`), push with tags
 4. Build: `uv build`
 5. Publish to PyPI: `uv publish`
-6. Update Homebrew formula (URL, sha256, resources) in `ukaratay/homebrew-tap`
+
+### Future: Homebrew
+
+Homebrew distribution via a personal tap (`ukaratay/homebrew-tap`) is a future enhancement. Python formulas require `virtualenv_install_with_resources` with resource blocks for all transitive dependencies — high maintenance per release. Defer until there's demand.
 
