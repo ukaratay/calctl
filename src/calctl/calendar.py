@@ -439,10 +439,15 @@ def _event_to_dict(event: Any) -> dict[str, Any]:
     if struct_loc is not None:
         cl_loc = struct_loc.geoLocation()
         if cl_loc is not None:
-            geo = {
-                "lat": float(cl_loc.coordinate().latitude),
-                "lng": float(cl_loc.coordinate().longitude),
-            }
+            coord = cl_loc.coordinate()
+            # PyObjC returns CLLocationCoordinate2D as a tuple (lat, lng)
+            if isinstance(coord, tuple):
+                geo = {"lat": float(coord[0]), "lng": float(coord[1])}
+            else:
+                geo = {
+                    "lat": float(coord.latitude),
+                    "lng": float(coord.longitude),
+                }
 
     # Availability
     avail_int = int(event.availability())
