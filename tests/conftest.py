@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sys
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -38,7 +37,7 @@ def _make_ns_date_mock(iso: str) -> MagicMock:
         return 0
 
     m.compare_ = _compare
-    m.dateByAddingTimeInterval_ = lambda secs: _make_ns_date_mock(iso)
+    m.dateByAddingTimeInterval_ = lambda _secs: _make_ns_date_mock(iso)
     return m
 
 
@@ -222,7 +221,8 @@ def _make_eventkit_module(store: MagicMock) -> MagicMock:
     rule_class = MagicMock(name="EKRecurrenceRule_class")
     rule_instance = _make_mock_recurrence_rule()
     rule_alloc = MagicMock()
-    rule_alloc.initRecurrenceWithFrequency_interval_daysOfTheWeek_daysOfTheMonth_monthsOfTheYear_weeksOfTheYear_daysOfTheYear_setPositions_end_.return_value = rule_instance
+    init_method = "initRecurrenceWithFrequency_interval_daysOfTheWeek_daysOfTheMonth_monthsOfTheYear_weeksOfTheYear_daysOfTheYear_setPositions_end_"  # noqa: E501
+    getattr(rule_alloc, init_method).return_value = rule_instance
     rule_class.alloc.return_value = rule_alloc
     ek.EKRecurrenceRule = rule_class
 
@@ -255,7 +255,7 @@ def _make_eventkit_module(store: MagicMock) -> MagicMock:
         return e
 
     def _make_end_date(d: Any) -> MagicMock:
-        e = MagicMock(name=f"EKRecurrenceEnd(date)")
+        e = MagicMock(name="EKRecurrenceEnd(date)")
         e.endDate.return_value = d
         e.occurrenceCount.return_value = 0
         return e
@@ -287,7 +287,7 @@ def _make_foundation_module() -> MagicMock:
     formatter = MagicMock(name="NSDateFormatter")
     formatter_instance = MagicMock(name="NSDateFormatter_instance")
     # dateFromString_ returns a mock NSDate based on the string
-    formatter_instance.dateFromString_.side_effect = lambda s: _make_ns_date_mock(s)
+    formatter_instance.dateFromString_.side_effect = _make_ns_date_mock
     formatter_instance.stringFromDate_.side_effect = lambda d: getattr(
         d, "_iso", "2026-01-01T00:00:00"
     )
@@ -347,31 +347,31 @@ def _make_corelocation_module() -> MagicMock:
     return cl
 
 
-@pytest.fixture()
+@pytest.fixture
 def mock_store() -> MagicMock:
     """A bare mock EKEventStore with no events by default."""
     return _make_mock_store()
 
 
-@pytest.fixture()
+@pytest.fixture
 def mock_eventkit(mock_store: MagicMock) -> MagicMock:
     """Return the mock EventKit module (store pre-wired)."""
     return _make_eventkit_module(mock_store)
 
 
-@pytest.fixture()
+@pytest.fixture
 def mock_foundation() -> MagicMock:
     """Return the mock Foundation module."""
     return _make_foundation_module()
 
 
-@pytest.fixture()
+@pytest.fixture
 def mock_corelocation() -> MagicMock:
     """Return the mock CoreLocation module."""
     return _make_corelocation_module()
 
 
-@pytest.fixture()
+@pytest.fixture
 def patched_calendar(
     mock_eventkit: MagicMock,
     mock_foundation: MagicMock,
@@ -380,9 +380,6 @@ def patched_calendar(
 ) -> Any:
     """Patch calendar module imports and wire up the access callback automatically."""
     import calctl.calendar as cal_module
-
-    # Make access callback fire immediately on store creation
-    original_get_store = cal_module._get_store
 
     def _instant_store() -> MagicMock:
         return mock_store

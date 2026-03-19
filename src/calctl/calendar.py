@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import re
 import time
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from calctl.errors import (
     AccessDeniedError,
@@ -17,9 +17,6 @@ from calctl.errors import (
     EventSaveError,
     RRuleParseError,
 )
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 
@@ -278,9 +275,9 @@ def _rrule_to_ek(rrule_str: str) -> Any:
     try:
         from dateutil.rrule import rrulestr  # type: ignore[import-untyped]
 
-        rule = rrulestr(rrule_str, ignoretz=True)
+        rrulestr(rrule_str, ignoretz=True)
     except Exception as exc:
-        raise RRuleParseError(f"Invalid RRULE: {rrule_str!r} — {exc}") from exc
+        raise RRuleParseError(f"Invalid RRULE: {rrule_str!r} - {exc}") from exc
 
     # Extract raw components from the RRULE string directly
     # (dateutil rrule object doesn't expose all components cleanly)
@@ -322,8 +319,8 @@ def _rrule_to_ek(rrule_str: str) -> Any:
     byday_str = _get_component("BYDAY")
     if byday_str:
         days_of_week = []
-        for part in byday_str.split(","):
-            part = part.strip()
+        for raw_part in byday_str.split(","):
+            part = raw_part.strip()
             # May have ordinal prefix like 1MO, -1FR
             m = re.fullmatch(r"([+-]?\d+)?([A-Z]{2})", part)
             if not m:
@@ -359,15 +356,7 @@ def _rrule_to_ek(rrule_str: str) -> Any:
     if bysetpos_str:
         set_positions = [int(p) for p in bysetpos_str.split(",")]
 
-    # WKST
-    wkst_day = None
-    wkst_str = _get_component("WKST")
-    if wkst_str and wkst_str in WEEKDAY_NAMES:
-        wkst_day = EventKit.EKRecurrenceDayOfWeek.dayOfWeek_(
-            WEEKDAY_NAMES.index(wkst_str)
-        )
-
-    ek_rule = EventKit.EKRecurrenceRule.alloc().initRecurrenceWithFrequency_interval_daysOfTheWeek_daysOfTheMonth_monthsOfTheYear_weeksOfTheYear_daysOfTheYear_setPositions_end_(  # noqa: E501
+    return EventKit.EKRecurrenceRule.alloc().initRecurrenceWithFrequency_interval_daysOfTheWeek_daysOfTheMonth_monthsOfTheYear_weeksOfTheYear_daysOfTheYear_setPositions_end_(  # noqa: E501
         ek_freq,
         interval,
         days_of_week,
@@ -378,7 +367,6 @@ def _rrule_to_ek(rrule_str: str) -> Any:
         set_positions,
         recurrence_end,
     )
-    return ek_rule
 
 
 def _ek_to_rrule(ek_rule: Any) -> str:
@@ -437,7 +425,7 @@ def _ek_to_rrule(ek_rule: Any) -> str:
     return "RRULE:" + ";".join(parts)
 
 
-def _event_to_dict(event: Any) -> dict[str, Any]:  # noqa: PLR0912
+def _event_to_dict(event: Any) -> dict[str, Any]:
     """Convert an EKEvent to a JSON-serializable dict with all fields."""
     cal = event.calendar()
 
@@ -532,7 +520,6 @@ def _event_to_dict(event: Any) -> dict[str, Any]:  # noqa: PLR0912
 
 def _apply_alarms(event: Any, alarms: list[str]) -> None:
     """Set alarms on an event, replacing all existing alarms."""
-    EventKit = _import_eventkit()
     # Remove existing
     event.setAlarms_(None)
     if not alarms or alarms == [""]:
@@ -609,7 +596,7 @@ def list_events(
             logger.debug("Calendar %r not found, returning empty list", calendar)
             return []
 
-    logger.debug("Creating predicate for events %s – %s", from_date, to_date)
+    logger.debug("Creating predicate for events %s - %s", from_date, to_date)
     predicate = store.predicateForEventsWithStartDate_endDate_calendars_(
         start, end, calendars
     )
@@ -667,7 +654,7 @@ def get_event(event_id: str) -> dict[str, Any]:
     return _event_to_dict(event)
 
 
-def create_event(  # noqa: PLR0912, PLR0913
+def create_event(
     title: str,
     start: str,
     end: str | None = None,
@@ -696,14 +683,13 @@ def create_event(  # noqa: PLR0912, PLR0913
     if all_day:
         event.setAllDay_(True)
         event.setEndDate_(_ns_date(end) if end else start_ns)
+    elif end:
+        end_ns = _ns_date(end)
+        if end_ns.compare_(start_ns) == Foundation.NSOrderedAscending:
+            raise DateParseError("End time must be after start time")
+        event.setEndDate_(end_ns)
     else:
-        if end:
-            end_ns = _ns_date(end)
-            if end_ns.compare_(start_ns) == Foundation.NSOrderedAscending:
-                raise DateParseError("End time must be after start time")
-            event.setEndDate_(end_ns)
-        else:
-            event.setEndDate_(start_ns.dateByAddingTimeInterval_(3600))
+        event.setEndDate_(start_ns.dateByAddingTimeInterval_(3600))
 
     if location:
         event.setLocation_(location)
@@ -760,7 +746,7 @@ def create_event(  # noqa: PLR0912, PLR0913
     return result
 
 
-def edit_event(  # noqa: PLR0912, PLR0913
+def edit_event(
     event_id: str,
     title: str | None = None,
     start: str | None = None,
@@ -805,13 +791,13 @@ def edit_event(  # noqa: PLR0912, PLR0913
         event.setAllDay_(all_day)
 
     if location is not None:
-        event.setLocation_(location if location else None)
+        event.setLocation_(location or None)
 
     if geo is not None:
         _apply_geo(event, geo, location)
 
     if notes is not None:
-        event.setNotes_(notes if notes else None)
+        event.setNotes_(notes or None)
 
     if url is not None:
         if url == "":
@@ -869,7 +855,6 @@ def edit_event(  # noqa: PLR0912, PLR0913
 
 def delete_event(event_id: str, span: str = "this") -> dict[str, Any]:
     """Delete an event by ID."""
-    EventKit = _import_eventkit()
     store = _get_store()
 
     logger.debug("Getting event to delete: %s", event_id)
