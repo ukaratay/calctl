@@ -4,7 +4,7 @@
 **Platform:** macOS only (requires EventKit framework via PyObjC)
 **Python:** ≥3.10 (constrained by PyObjC; lowest version enabling full functionality)
 **Goal:** Harden calctl with Typer CLI, proper error handling, logging, dual output formats, full EventKit coverage, strict typing/linting, and tests.
-**Approach:** Incremental refactor — keep flat module structure, add `errors.py`, `formatting.py`, and `rrule.py`.
+**Approach:** Incremental refactor — keep flat module structure, add `errors.py` and `formatting.py`.
 
 ## File Structure (after)
 
@@ -15,14 +15,12 @@ src/calctl/
 ├── cli.py           # Typer CLI (replaces argparse)
 ├── errors.py        # Exception hierarchy (new)
 ├── formatting.py    # Output formatting (new)
-├── rrule.py         # RRULE ↔ EKRecurrenceRule conversion (new)
 └── py.typed
 tests/
 ├── conftest.py      # Shared fixtures
 ├── test_calendar.py
 ├── test_cli.py
-├── test_formatting.py
-└── test_rrule.py
+└── test_formatting.py
 ```
 
 ## 1. Error Handling (`errors.py`)
@@ -160,26 +158,22 @@ Dispatch is by **data shape** using the `_action` discriminator key. Priority or
 - DEBUG: event save/delete attempts and results, RRULE parsing, alarm parsing
 - WARNING: EventKit callback timeout approaching
 
-## 5. RRULE Handling (`rrule.py`)
+## 5. RRULE Handling (via `python-dateutil`)
 
-Bidirectional conversion between iCal RRULE strings and `EKRecurrenceRule` objects.
+Uses `python-dateutil` for RRULE parsing and serialization — no custom parser.
 
-### RRULE → EKRecurrenceRule (`parse_rrule`)
-Parse standard RRULE components:
-- `FREQ`: DAILY, WEEKLY, MONTHLY, YEARLY → `EKRecurrenceFrequency`
-- `INTERVAL`: integer (default 1)
-- `COUNT`: number of occurrences → `EKRecurrenceEnd.recurrenceEndWithOccurrenceCount_`
-- `UNTIL`: date → `EKRecurrenceEnd.recurrenceEndWithEndDate_`
-- `BYDAY`: MO,TU,WE,TH,FR,SA,SU (with optional position: 2TU = 2nd Tuesday) → `EKRecurrenceDayOfWeek`
-- `BYMONTHDAY`: day numbers (1-31, negative for end-of-month)
-- `BYMONTH`: month numbers (1-12)
-- `BYSETPOS`: set position (e.g., -1 for last occurrence)
-- `WKST`: week start day (default MO)
+### RRULE string → EKRecurrenceRule (in `calendar.py`)
+1. Parse RRULE string with `dateutil.rrule.rrulestr()` to get a `dateutil.rrule.rrule` object
+2. Extract components (freq, interval, count, until, byweekday, bymonthday, bymonth, bysetpos, wkst)
+3. Map to EventKit types: `EKRecurrenceFrequency`, `EKRecurrenceDayOfWeek`, `EKRecurrenceEnd`
+4. Construct `EKRecurrenceRule` via `initRecurrenceWithFrequency_interval_daysOfTheWeek_daysOfTheMonth_monthsOfTheYear_weeksOfTheYear_daysOfTheYear_setPositions_end_`
 
-Raises `RRuleParseError` for invalid RRULE strings.
+### EKRecurrenceRule → RRULE string (in `calendar.py`)
+1. Extract components from `EKRecurrenceRule` (frequency, interval, daysOfTheWeek, etc.)
+2. Build RRULE string manually from components (straightforward key=value assembly)
+3. No dateutil needed for this direction — it's simple string formatting
 
-### EKRecurrenceRule → RRULE (`format_rrule`)
-Reverse conversion for display. Serialize back to standard RRULE string.
+Raises `RRuleParseError` (wrapping dateutil exceptions) for invalid RRULE strings.
 
 ## 6. `calendar.py` — Full EventKit Coverage
 
@@ -402,11 +396,11 @@ All date range and input validation happens in `calendar.py`, before querying Ev
 
 ### Platform handling
 - `calendar.py` tests are marked with `@pytest.mark.skipif(sys.platform != "darwin", reason="macOS only")` for CI compatibility
-- `formatting.py`, `rrule.py`, and CLI tests (with mocked calendar functions) run on all platforms
+- `formatting.py` and CLI tests (with mocked calendar functions) run on all platforms
 
 ### Static analysis
 - All code must pass `ruff check` and `ruff format --check` with the strict config (§8)
-- All pure-Python modules (`errors.py`, `formatting.py`, `rrule.py`, `cli.py`) must pass `pyright` strict mode with zero errors
+- All pure-Python modules (`errors.py`, `formatting.py`, `cli.py`) must pass `pyright` strict mode with zero errors
 - `calendar.py` must pass pyright with warnings (not errors) for PyObjC dynamic types
 
 ### `tests/test_formatting.py`
@@ -428,16 +422,11 @@ All date range and input validation happens in `calendar.py`, before querying Ev
 - Mock `EventKit.EKEventStore` and related PyObjC objects
 - Test: date parsing (`_ns_date`), event-to-dict conversion (all fields), error paths
 - Test: alarm parsing (relative and absolute), structured location, availability mapping
+- Test: RRULE ↔ EKRecurrenceRule conversion (all FREQ types, BYDAY, BYMONTHDAY, complex patterns, round-trip, error cases)
 - Test: `list_events`, `search_events`, `create_event`, `edit_event`, `delete_event` with mocked store
 - Test: input validation (date range, end < start, geo format)
 - Test: calendar move on edit, span handling
 - Test: clearing fields with empty strings
-
-### `tests/test_rrule.py`
-- Test RRULE string → EKRecurrenceRule conversion (all FREQ types, INTERVAL, COUNT, UNTIL, BYDAY, BYMONTHDAY, BYMONTH, BYSETPOS)
-- Test EKRecurrenceRule → RRULE string (round-trip)
-- Test complex patterns: "2nd Tuesday of month", "last weekday", "every 3 months on 15th"
-- Test error cases: invalid RRULE strings
 
 ## 8. Project Configuration & Dependencies
 
@@ -452,6 +441,7 @@ requires-python = ">=3.10"
 dependencies = [
     "pyobjc-framework-EventKit>=11.0",
     "pyobjc-framework-CoreLocation>=11.0",
+    "python-dateutil>=2.9",
     "typer>=0.15",
 ]
 
@@ -536,13 +526,4 @@ uv run pytest                      # Tests
 - All test files for `calendar.py` use `@pytest.mark.skipif(sys.platform != "darwin")` for safety, though in practice tests will only run on macOS.
 - `formatting.py`, `rrule.py`, `errors.py`, and CLI integration tests (with mocked calendar) are pure Python and technically cross-platform.
 
-## 10. Migration Notes
 
-- **Python version lowered from 3.12 to 3.10** — `requires-python` and all tool configs updated. The `from __future__ import annotations` import is used throughout for modern syntax compatibility.
-- The CLI interface stays the same from the user's perspective (same commands, same arguments)
-- **New flags:** `--url`, `--geo`, `--availability`, `--timezone`, `--rrule`, `--alarm` (repeatable), `--span` (edit/delete only), `--no-all-day` (edit only), `--calendar` on search
-- **Enriched output:** `show` and `list` now include attendees, organizer, status, availability, alarms, rrule, timezone, geo, created/modified dates
-- **Output format default:** auto-detects based on TTY. Interactive terminals get text, pipes/scripts get JSON. Override with `--format json` or `--format text`.
-- Exit codes become meaningful: 0=success, 1=calctl error, 2=unexpected error
-- Errors go to stderr (plain text), data goes to stdout
-- Typer adds `--help` on every subcommand automatically
