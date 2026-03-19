@@ -1,7 +1,9 @@
 # calctl Hardening Design
 
 **Date:** 2026-03-19
-**Goal:** Harden calctl with Typer CLI, proper error handling, logging, dual output formats, full EventKit coverage, and tests.
+**Platform:** macOS only (requires EventKit framework via PyObjC)
+**Python:** ≥3.10 (constrained by PyObjC; lowest version enabling full functionality)
+**Goal:** Harden calctl with Typer CLI, proper error handling, logging, dual output formats, full EventKit coverage, strict typing/linting, and tests.
 **Approach:** Incremental refactor — keep flat module structure, add `errors.py`, `formatting.py`, and `rrule.py`.
 
 ## File Structure (after)
@@ -402,6 +404,11 @@ All date range and input validation happens in `calendar.py`, before querying Ev
 - `calendar.py` tests are marked with `@pytest.mark.skipif(sys.platform != "darwin", reason="macOS only")` for CI compatibility
 - `formatting.py`, `rrule.py`, and CLI tests (with mocked calendar functions) run on all platforms
 
+### Static analysis
+- All code must pass `ruff check` and `ruff format --check` with the strict config (§8)
+- All pure-Python modules (`errors.py`, `formatting.py`, `rrule.py`, `cli.py`) must pass `pyright` strict mode with zero errors
+- `calendar.py` must pass pyright with warnings (not errors) for PyObjC dynamic types
+
 ### `tests/test_formatting.py`
 - Test JSON and text output for each data shape (event list, calendar list, single event, action messages)
 - Test `_action` key stripping in both JSON and text modes
@@ -432,26 +439,106 @@ All date range and input validation happens in `calendar.py`, before querying Ev
 - Test complex patterns: "2nd Tuesday of month", "last weekday", "every 3 months on 15th"
 - Test error cases: invalid RRULE strings
 
-## 8. Dependency Changes
+## 8. Project Configuration & Dependencies
+
+### `pyproject.toml`
 
 ```toml
 [project]
+name = "calctl"
+version = "0.1.0"
+description = "macOS Calendar CLI using EventKit"
+requires-python = ">=3.10"
 dependencies = [
     "pyobjc-framework-EventKit>=11.0",
     "pyobjc-framework-CoreLocation>=11.0",
     "typer>=0.15",
 ]
 
+[project.scripts]
+calctl = "calctl.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [dependency-groups]
 dev = [
     "ruff>=0.15.6",
+    "pyright>=1.1",
     "pytest>=8.0",
     "pytest-mock>=3.14",
 ]
 ```
 
-## 9. Migration Notes
+### Ruff (`ruff.toml` or `[tool.ruff]` in pyproject.toml)
 
+Strict defaults with all safety-focused rules enabled:
+
+```toml
+[tool.ruff]
+target-version = "py310"
+line-length = 88
+
+[tool.ruff.lint]
+select = [
+    "ALL",       # Start with everything
+]
+ignore = [
+    "D",         # pydocstyle — skip for now (add later)
+    "COM812",    # trailing comma (conflicts with formatter)
+    "ISC001",    # implicit string concat (conflicts with formatter)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = [
+    "S101",      # assert in tests is fine
+    "ANN",       # annotations not required in tests
+    "PLR2004",   # magic values in tests are fine
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+```
+
+### Pyright
+
+Strict mode for full type safety:
+
+```toml
+[tool.pyright]
+pythonVersion = "3.10"
+typeCheckingMode = "strict"
+reportMissingTypeStubs = "warning"        # PyObjC lacks stubs
+reportUnknownMemberType = "warning"       # PyObjC dynamic attributes
+reportUnknownArgumentType = "warning"     # PyObjC callback types
+reportUnknownVariableType = "warning"     # PyObjC return types
+reportAttributeAccessIssue = "warning"    # PyObjC dynamic methods
+```
+
+**Note on PyObjC and Pyright:** PyObjC uses dynamic Objective-C bridging — most EventKit types have no Python type stubs. The pyright config relaxes `reportMissing*`/`reportUnknown*` rules to `warning` (not `error`) to avoid false positives on PyObjC calls. All pure-Python code (errors, formatting, rrule, CLI) must pass strict checks with zero errors.
+
+### CI / Developer Workflow
+
+All checks must pass before commit:
+```bash
+uv run ruff check .                # Lint
+uv run ruff format --check .       # Format check
+uv run pyright                     # Type check
+uv run pytest                      # Tests
+```
+
+## 9. Platform & Compatibility
+
+- **macOS only.** calctl depends on Apple's EventKit framework via PyObjC. It will not install or run on Linux/Windows.
+- `pyproject.toml` does not add platform classifiers or markers — PyObjC itself will fail to install on non-macOS platforms, which is sufficient.
+- All test files for `calendar.py` use `@pytest.mark.skipif(sys.platform != "darwin")` for safety, though in practice tests will only run on macOS.
+- `formatting.py`, `rrule.py`, `errors.py`, and CLI integration tests (with mocked calendar) are pure Python and technically cross-platform.
+
+## 10. Migration Notes
+
+- **Python version lowered from 3.12 to 3.10** — `requires-python` and all tool configs updated. The `from __future__ import annotations` import is used throughout for modern syntax compatibility.
 - The CLI interface stays the same from the user's perspective (same commands, same arguments)
 - **New flags:** `--url`, `--geo`, `--availability`, `--timezone`, `--rrule`, `--alarm` (repeatable), `--span` (edit/delete only), `--no-all-day` (edit only), `--calendar` on search
 - **Enriched output:** `show` and `list` now include attendees, organizer, status, availability, alarms, rrule, timezone, geo, created/modified dates
