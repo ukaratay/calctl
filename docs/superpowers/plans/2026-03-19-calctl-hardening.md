@@ -52,7 +52,7 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
 authors = [
-    { name = "Umur Karatay", email = "umur@karatay.com" },
+    { name = "Durmus Karatay", email = "durmus@karatay.me" },
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -130,7 +130,7 @@ reportAttributeAccessIssue = "warning"
 
 - [ ] **Step 2: Create LICENSE file**
 
-Create `LICENSE` with MIT license, copyright 2026 Umur Karatay.
+Create `LICENSE` with MIT license, copyright 2026 Durmus Karatay.
 
 - [ ] **Step 3: Install dependencies**
 

@@ -445,7 +445,7 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
 authors = [
-    { name = "Umur Karatay", email = "umur@karatay.com" },
+    { name = "Durmus Karatay", email = "durmus@karatay.me" },
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -569,7 +569,7 @@ A proper README for PyPI/GitHub with:
 
 ### LICENSE
 
-MIT license file with copyright `Umur Karatay`.
+MIT license file with copyright `Durmus Karatay`.
 
 ### PyPI Publishing
 
