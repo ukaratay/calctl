@@ -613,12 +613,15 @@ def _span_constant(span: str) -> Any:
 def _find_occurrence(store: Any, event_id: str, date_str: str) -> Any:
     """Find a specific occurrence of a recurring event on *date_str*.
 
-    Searches a 24-hour window starting at *date_str* for an event whose
-    ``eventIdentifier()`` matches *event_id* and returns the occurrence
-    object.  Raises ``EventNotFoundError`` if nothing is found.
+    When *date_str* includes a time component (``T`` separator), searches
+    a 1-hour window to disambiguate multiple same-day occurrences (e.g. an
+    event recurring every 2 hours).  Otherwise searches a 24-hour window.
+
+    Raises ``EventNotFoundError`` if nothing is found.
     """
     start = _ns_date(date_str)
-    end = start.dateByAddingTimeInterval_(86400)
+    window = 3600 if "T" in date_str else 86400
+    end = start.dateByAddingTimeInterval_(window)
 
     predicate = (
         store.predicateForEventsWithStartDate_endDate_calendars_(

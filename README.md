@@ -214,7 +214,7 @@ calctl show EVENT_ID [OPTIONS]
 | Argument/Option | Type | Default | Description |
 |-----------------|------|---------|-------------|
 | `EVENT_ID` | string | **required** | Event identifier (from `list` or `search` output). |
-| `--date` | `YYYY-MM-DD` | | Show the specific occurrence on this date instead of the base event. |
+| `--date` | `YYYY-MM-DD` or `YYYY-MM-DDTHH:MM:SS` | | Show the specific occurrence on this date instead of the base event. Use a datetime to disambiguate multiple same-day occurrences. |
 
 **Examples:**
 
@@ -303,7 +303,7 @@ calctl edit EVENT_ID [OPTIONS]
 | `--rrule` | RRULE string | | New recurrence rule. |
 | `--alarm` | duration | | New alarm(s). Repeatable. Use `--alarm ""` to clear all alarms. |
 | `--span` | `this\|future` | auto | For recurring events: edit only this occurrence (`this`) or this and all future occurrences (`future`). See [Recurring Events](#recurring-events). |
-| `--date` | `YYYY-MM-DD` | | Target the occurrence on this date instead of the base event. |
+| `--date` | `YYYY-MM-DD` or `YYYY-MM-DDTHH:MM:SS` | | Target the occurrence on this date instead of the base event. Use a datetime to disambiguate multiple same-day occurrences. |
 | `--dry-run` | flag | false | Show what would be changed without saving. |
 
 **Examples:**
@@ -342,7 +342,7 @@ calctl delete EVENT_ID [OPTIONS]
 |-----------------|------|---------|-------------|
 | `EVENT_ID` | string | **required** | Event to delete. |
 | `--span` | `this\|future` | auto | For recurring events: delete only this occurrence (`this`) or this and all future occurrences (`future`). See [Recurring Events](#recurring-events). |
-| `--date` | `YYYY-MM-DD` | | Target the occurrence on this date instead of the base event. |
+| `--date` | `YYYY-MM-DD` or `YYYY-MM-DDTHH:MM:SS` | | Target the occurrence on this date instead of the base event. Use a datetime to disambiguate multiple same-day occurrences. |
 | `--dry-run` | flag | false | Show what would be deleted without removing. |
 
 **Examples:**
@@ -389,6 +389,12 @@ calctl edit EVENT_ID --date 2026-03-25 --title "Rescheduled" --span this
 
 # Delete just that occurrence
 calctl delete EVENT_ID --date 2026-03-25 --span this
+```
+
+For events that recur multiple times in the same day, pass a full datetime to disambiguate:
+
+```bash
+calctl delete EVENT_ID --date 2026-03-25T14:00:00 --span this
 ```
 
 ### Identifying recurring events

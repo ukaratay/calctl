@@ -1487,6 +1487,31 @@ class TestFindOccurrence:
         with pytest.raises(EventNotFoundError, match="No occurrence"):
             cal._find_occurrence(mock_store, "e1", "2026-03-25")
 
+    def test_datetime_disambiguates_same_day_occurrences(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
+        """Two occurrences of the same event on the same day.
+
+        With a date-only query both would match (first wins).
+        With a datetime query the 1h window ensures only the targeted
+        occurrence is in the result set.
+        """
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_event
+
+        morning = _make_mock_event("e1", "Standup", start_iso="2026-03-25T09:00:00")
+        afternoon = _make_mock_event("e1", "Standup", start_iso="2026-03-25T14:00:00")
+
+        # Simulate: datetime query for 14:00 → only afternoon in results
+        mock_store.eventsMatchingPredicate_.return_value = [afternoon]
+        result = cal._find_occurrence(mock_store, "e1", "2026-03-25T14:00:00")
+        assert result is afternoon
+
+        # Simulate: date-only query → both match, first wins
+        mock_store.eventsMatchingPredicate_.return_value = [morning, afternoon]
+        result = cal._find_occurrence(mock_store, "e1", "2026-03-25")
+        assert result is morning
+
 
 # ---------------------------------------------------------------------------
 # get_event with --date

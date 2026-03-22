@@ -170,7 +170,7 @@ def show(
         str | None,
         typer.Option(
             "--date",
-            help="Show the occurrence on this date (YYYY-MM-DD)",
+            help="Show occurrence on this date (YYYY-MM-DDTHH:MM:SS)",
         ),
     ] = None,
 ) -> None:
@@ -330,7 +330,7 @@ def edit(  # noqa: PLR0913
         str | None,
         typer.Option(
             "--date",
-            help="Target the occurrence on this date (YYYY-MM-DD)",
+            help="Target occurrence on this date (YYYY-MM-DDTHH:MM:SS)",
         ),
     ] = None,
 ) -> None:
@@ -376,7 +376,7 @@ def delete(
         str | None,
         typer.Option(
             "--date",
-            help="Target the occurrence on this date (YYYY-MM-DD)",
+            help="Target occurrence on this date (YYYY-MM-DDTHH:MM:SS)",
         ),
     ] = None,
 ) -> None:
