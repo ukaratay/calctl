@@ -142,7 +142,7 @@ def test_show():
     with patch("calctl.cli.get_event", return_value=FAKE_EVENT) as mock:
         result = runner.invoke(app, ["--format", "json", "show", "evt-123"])
     assert result.exit_code == 0
-    mock.assert_called_once_with("evt-123")
+    mock.assert_called_once_with("evt-123", date=None)
 
 
 # ---------------------------------------------------------------------------
@@ -288,7 +288,9 @@ def test_delete():
     with patch("calctl.cli.delete_event", return_value=ret) as mock:
         result = runner.invoke(app, ["--format", "text", "delete", "evt-123"])
     assert result.exit_code == 0
-    mock.assert_called_once_with("evt-123", span="this", dry_run=False)
+    mock.assert_called_once_with(
+        "evt-123", span=None, dry_run=False, date=None,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -303,11 +305,44 @@ def test_delete_span():
             app, ["--format", "text", "delete", "evt-123", "--span", "future"]
         )
     assert result.exit_code == 0
-    mock.assert_called_once_with("evt-123", span="future", dry_run=False)
+    mock.assert_called_once_with(
+        "evt-123", span="future", dry_run=False, date=None,
+    )
 
 
 # ---------------------------------------------------------------------------
-# 16b. delete --dry-run
+# 15b. show --date
+# ---------------------------------------------------------------------------
+
+
+def test_show_with_date():
+    with patch("calctl.cli.get_event", return_value=FAKE_EVENT) as mock:
+        result = runner.invoke(
+            app, ["--format", "json", "show", "evt-123", "--date", "2026-03-25"]
+        )
+    assert result.exit_code == 0
+    mock.assert_called_once_with("evt-123", date="2026-03-25")
+
+
+# ---------------------------------------------------------------------------
+# 16b. delete --date
+# ---------------------------------------------------------------------------
+
+
+def test_delete_with_date():
+    ret = {"_action": "deleted", "_span": "this", **FAKE_EVENT}
+    with patch("calctl.cli.delete_event", return_value=ret) as mock:
+        result = runner.invoke(
+            app, ["--format", "json", "delete", "evt-123", "--date", "2026-03-25"]
+        )
+    assert result.exit_code == 0
+    mock.assert_called_once_with(
+        "evt-123", span=None, dry_run=False, date="2026-03-25",
+    )
+
+
+# ---------------------------------------------------------------------------
+# 16c. delete --dry-run
 # ---------------------------------------------------------------------------
 
 
@@ -318,7 +353,9 @@ def test_delete_dry_run():
             app, ["--format", "json", "delete", "evt-123", "--dry-run"]
         )
     assert result.exit_code == 0
-    mock.assert_called_once_with("evt-123", span="this", dry_run=True)
+    mock.assert_called_once_with(
+        "evt-123", span=None, dry_run=True, date=None,
+    )
     data = json.loads(result.output)
     assert data["_span"] == "this"
 
@@ -337,6 +374,27 @@ def test_edit_dry_run():
     assert result.exit_code == 0
     kw = mock.call_args[1]
     assert kw["dry_run"] is True
+
+
+# ---------------------------------------------------------------------------
+# 16e. edit --date
+# ---------------------------------------------------------------------------
+
+
+def test_edit_with_date():
+    ret = {"_action": "updated", "_span": "this", **FAKE_EVENT}
+    with patch("calctl.cli.edit_event", return_value=ret) as mock:
+        result = runner.invoke(
+            app,
+            [
+                "--format", "json", "edit", "evt-123",
+                "--title", "New", "--date", "2026-03-25",
+            ],
+        )
+    assert result.exit_code == 0
+    kw = mock.call_args[1]
+    assert kw["date"] == "2026-03-25"
+    assert kw["span"] is None
 
 
 # ---------------------------------------------------------------------------

@@ -135,9 +135,16 @@ def search(
 @app.command()
 def show(
     event_id: Annotated[str, typer.Argument(help="Event ID")],
+    date: Annotated[
+        str | None,
+        typer.Option(
+            "--date",
+            help="Show the occurrence on this date (YYYY-MM-DD)",
+        ),
+    ] = None,
 ) -> None:
     """Show event details."""
-    result = get_event(event_id)
+    result = get_event(event_id, date=date)
     _output(result)
 
 
@@ -278,9 +285,9 @@ def edit(  # noqa: PLR0913
         typer.Option("--alarm", help="Alarm offset. Repeatable."),
     ] = None,
     span: Annotated[
-        str,
+        str | None,
         typer.Option("--span", help="Edit span: this or future"),
-    ] = "this",
+    ] = None,
     dry_run: Annotated[  # noqa: FBT002
         bool,
         typer.Option(
@@ -288,6 +295,13 @@ def edit(  # noqa: PLR0913
             help="Show what would be changed without saving",
         ),
     ] = False,
+    date: Annotated[
+        str | None,
+        typer.Option(
+            "--date",
+            help="Target the occurrence on this date (YYYY-MM-DD)",
+        ),
+    ] = None,
 ) -> None:
     """Edit an existing event."""
     _validate_alarms(alarm)
@@ -308,6 +322,7 @@ def edit(  # noqa: PLR0913
         alarms=alarm,
         span=span,
         dry_run=dry_run,
+        date=date,
     )
     _output(result)
 
@@ -316,9 +331,9 @@ def edit(  # noqa: PLR0913
 def delete(
     event_id: Annotated[str, typer.Argument(help="Event ID")],
     span: Annotated[
-        str,
+        str | None,
         typer.Option("--span", help="Delete span: this or future"),
-    ] = "this",
+    ] = None,
     dry_run: Annotated[  # noqa: FBT002
         bool,
         typer.Option(
@@ -326,9 +341,18 @@ def delete(
             help="Show what would be deleted without removing",
         ),
     ] = False,
+    date: Annotated[
+        str | None,
+        typer.Option(
+            "--date",
+            help="Target the occurrence on this date (YYYY-MM-DD)",
+        ),
+    ] = None,
 ) -> None:
     """Delete an event."""
-    result = delete_event(event_id, span=span, dry_run=dry_run)
+    result = delete_event(
+        event_id, span=span, dry_run=dry_run, date=date,
+    )
     _output(result)
 
 

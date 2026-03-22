@@ -566,22 +566,28 @@ def _is_base_recurring_event(event: Any) -> bool:
     return has_recurrence and not is_detached
 
 
-def _resolve_span(event: Any, span: str) -> str:
+def _resolve_span(event: Any, span: str | None) -> str:
     """Resolve the effective span for a recurring event.
 
-    When *span* is ``"this"`` but the event is the base of a recurring series
-    (not a detached occurrence), auto-escalate to ``"future"`` to prevent
-    accidentally wiping the entire series including past occurrences.
+    *span* meanings:
+
+    * ``None`` - caller did **not** pass ``--span`` explicitly.  If the event
+      is the base of a recurring series auto-escalate to ``"future"`` to
+      prevent accidentally wiping the entire series.  Otherwise default to
+      ``"this"``.
+    * ``"this"`` / ``"future"`` - caller explicitly chose; use as-is.
     """
-    if span == "this" and _is_base_recurring_event(event):
+    if span is not None:
+        return span
+    if _is_base_recurring_event(event):
         logger.warning(
             "Event %s is the base of a recurring series; "
-            "auto-escalating span from 'this' to 'future' to preserve "
-            "past occurrences. Pass --span explicitly to override.",
+            "auto-escalating span to 'future' to preserve "
+            "past occurrences. Pass --span this to override.",
             event.eventIdentifier(),
         )
         return "future"
-    return span
+    return "this"
 
 
 def _span_constant(span: str) -> Any:
@@ -594,6 +600,32 @@ def _span_constant(span: str) -> Any:
     if span == "future":
         return EventKit.EKSpanFutureEvents
     return EventKit.EKSpanThisEvent
+
+
+def _find_occurrence(store: Any, event_id: str, date_str: str) -> Any:
+    """Find a specific occurrence of a recurring event on *date_str*.
+
+    Searches a 24-hour window starting at *date_str* for an event whose
+    ``eventIdentifier()`` matches *event_id* and returns the occurrence
+    object.  Raises ``EventNotFoundError`` if nothing is found.
+    """
+    start = _ns_date(date_str)
+    end = start.dateByAddingTimeInterval_(86400)
+
+    predicate = (
+        store.predicateForEventsWithStartDate_endDate_calendars_(
+            start, end, None
+        )
+    )
+    events = store.eventsMatchingPredicate_(predicate) or []
+
+    for event in events:
+        if str(event.eventIdentifier()) == event_id:
+            return event
+
+    raise EventNotFoundError(
+        f"No occurrence of event {event_id} found on {date_str}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -682,13 +714,24 @@ def search_events(
     ]
 
 
-def get_event(event_id: str) -> dict[str, Any]:
-    """Get a single event by ID."""
+def get_event(
+    event_id: str, date: str | None = None,
+) -> dict[str, Any]:
+    """Get a single event by ID.
+
+    When *date* is given the specific occurrence on that date is returned
+    instead of the base recurring event.
+    """
     store = _get_store()
-    logger.debug("Getting event: %s", event_id)
-    event = store.eventWithIdentifier_(event_id)
-    if event is None:
-        raise EventNotFoundError(f"Event not found: {event_id}")
+    logger.debug("Getting event: %s (date=%s)", event_id, date)
+
+    if date is not None:
+        event = _find_occurrence(store, event_id, date)
+    else:
+        event = store.eventWithIdentifier_(event_id)
+        if event is None:
+            raise EventNotFoundError(f"Event not found: {event_id}")
+
     return _event_to_dict(event)
 
 
@@ -799,25 +842,34 @@ def edit_event(
     timezone: str | None = None,
     rrule: str | None = None,
     alarms: list[str] | None = None,
-    span: str = "this",
+    span: str | None = None,
     dry_run: bool = False,
+    date: str | None = None,
 ) -> dict[str, Any]:
-    """Edit an existing event."""
+    """Edit an existing event.
+
+    When *date* is given the specific occurrence on that date is targeted
+    instead of the base recurring event.
+    """
     EventKit = _import_eventkit()
     Foundation = _import_foundation()
     store = _get_store()
 
-    logger.debug("Getting event to edit: %s", event_id)
-    event = store.eventWithIdentifier_(event_id)
-    if event is None:
-        raise EventNotFoundError(f"Event not found: {event_id}")
+    logger.debug("Getting event to edit: %s (date=%s)", event_id, date)
 
-    span = _resolve_span(event, span)
+    if date is not None:
+        event = _find_occurrence(store, event_id, date)
+    else:
+        event = store.eventWithIdentifier_(event_id)
+        if event is None:
+            raise EventNotFoundError(f"Event not found: {event_id}")
+
+    resolved_span = _resolve_span(event, span)
 
     if dry_run:
         result = _event_to_dict(event)
         result["_action"] = "dry_run"
-        result["_span"] = span
+        result["_span"] = resolved_span
         return result
 
     if title is not None:
@@ -888,8 +940,10 @@ def edit_event(
             raise CalendarNotFoundError(f"Calendar not found: {calendar!r}")
         event.setCalendar_(matching[0])
 
-    ek_span = _span_constant(span)
-    logger.debug("Saving edited event: %s (span=%s)", event_id, span)
+    ek_span = _span_constant(resolved_span)
+    logger.debug(
+        "Saving edited event: %s (span=%s)", event_id, resolved_span,
+    )
     success, error = store.saveEvent_span_error_(event, ek_span, None)
     if not success:
         err_msg = str(error.localizedDescription()) if error else "Unknown error"
@@ -897,32 +951,45 @@ def edit_event(
 
     result = _event_to_dict(event)
     result["_action"] = "updated"
-    result["_span"] = span
+    result["_span"] = resolved_span
     return result
 
 
 def delete_event(
-    event_id: str, span: str = "this", dry_run: bool = False,
+    event_id: str,
+    span: str | None = None,
+    dry_run: bool = False,
+    date: str | None = None,
 ) -> dict[str, Any]:
-    """Delete an event by ID."""
+    """Delete an event by ID.
+
+    When *date* is given the specific occurrence on that date is targeted
+    instead of the base recurring event.
+    """
     store = _get_store()
 
-    logger.debug("Getting event to delete: %s", event_id)
-    event = store.eventWithIdentifier_(event_id)
-    if event is None:
-        raise EventNotFoundError(f"Event not found: {event_id}")
+    logger.debug("Getting event to delete: %s (date=%s)", event_id, date)
 
-    span = _resolve_span(event, span)
+    if date is not None:
+        event = _find_occurrence(store, event_id, date)
+    else:
+        event = store.eventWithIdentifier_(event_id)
+        if event is None:
+            raise EventNotFoundError(f"Event not found: {event_id}")
+
+    resolved_span = _resolve_span(event, span)
     details = _event_to_dict(event)
-    details["_span"] = span
+    details["_span"] = resolved_span
 
     if dry_run:
         details["_action"] = "dry_run"
         return details
 
-    ek_span = _span_constant(span)
+    ek_span = _span_constant(resolved_span)
 
-    logger.debug("Deleting event: %s (span=%s)", event_id, span)
+    logger.debug(
+        "Deleting event: %s (span=%s)", event_id, resolved_span,
+    )
     success, error = store.removeEvent_span_error_(event, ek_span, None)
     if not success:
         err_msg = str(error.localizedDescription()) if error else "Unknown error"
