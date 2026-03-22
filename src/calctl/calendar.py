@@ -569,9 +569,7 @@ VALID_SPANS = ("this", "future")
 def _is_base_recurring_event(event: Any) -> bool:
     """Return True if this is a recurring event's base (not a detached occurrence)."""
     rules = event.recurrenceRules()
-    has_recurrence = bool(rules and len(rules) > 0)
-    is_detached = bool(event.isDetached())
-    return has_recurrence and not is_detached
+    return bool(rules) and not bool(event.isDetached())
 
 
 def _resolve_span(event: Any, span: str | None) -> str:
@@ -586,6 +584,11 @@ def _resolve_span(event: Any, span: str | None) -> str:
     * ``"this"`` / ``"future"`` - caller explicitly chose; use as-is.
     """
     if span is not None:
+        if span not in VALID_SPANS:
+            raise CalctlError(
+                f"Invalid span: {span!r}. "
+                f"Must be one of: {', '.join(VALID_SPANS)}"
+            )
         return span
     if _is_base_recurring_event(event):
         logger.warning(
@@ -614,14 +617,16 @@ def _find_occurrence(store: Any, event_id: str, date_str: str) -> Any:
     """Find a specific occurrence of a recurring event on *date_str*.
 
     When *date_str* includes a time component (``T`` separator), searches
-    a 1-hour window to disambiguate multiple same-day occurrences (e.g. an
-    event recurring every 2 hours).  Otherwise searches a 24-hour window.
+    a 1-hour window (with a 5-minute backward buffer) to disambiguate
+    multiple same-day occurrences.  Otherwise searches a 24-hour window.
 
     Raises ``EventNotFoundError`` if nothing is found.
     """
-    start = _ns_date(date_str)
-    window = 3600 if "T" in date_str else 86400
-    end = start.dateByAddingTimeInterval_(window)
+    anchor = _ns_date(date_str)
+    has_time = "T" in date_str
+    start = anchor.dateByAddingTimeInterval_(-300) if has_time else anchor
+    window = 3600 if has_time else 86400
+    end = anchor.dateByAddingTimeInterval_(window)
 
     predicate = (
         store.predicateForEventsWithStartDate_endDate_calendars_(
@@ -711,8 +716,13 @@ def list_events(
     if start.compare_(end) != Foundation.NSOrderedAscending:
         raise DateParseError("Start date must be before end date")
 
-    # Backwards-compatible: single calendar -> list
-    include = calendars or ([calendar] if calendar else None)
+    if calendar and calendars:
+        raise CalctlError("Use 'calendar' or 'calendars', not both")
+    include = (
+        calendars if calendars is not None
+        else [calendar] if calendar
+        else None
+    )
     ek_cals = _filter_calendars(store, include, exclude_calendars)
     if ek_cals is not None and not ek_cals:
         return []
@@ -749,7 +759,13 @@ def search_events(
         else now.dateByAddingTimeInterval_(90 * 86400)
     )
 
-    include = calendars or ([calendar] if calendar else None)
+    if calendar and calendars:
+        raise CalctlError("Use 'calendar' or 'calendars', not both")
+    include = (
+        calendars if calendars is not None
+        else [calendar] if calendar
+        else None
+    )
     ek_cals = _filter_calendars(store, include, exclude_calendars)
     if ek_cals is not None and not ek_cals:
         return []
@@ -924,7 +940,7 @@ def edit_event(
     if dry_run:
         result = _event_to_dict(event)
         result["_action"] = "dry_run"
-        result["_span"] = resolved_span
+        result["span"] = resolved_span
         return result
 
     if title is not None:
@@ -1006,7 +1022,7 @@ def edit_event(
 
     result = _event_to_dict(event)
     result["_action"] = "updated"
-    result["_span"] = resolved_span
+    result["span"] = resolved_span
     return result
 
 
@@ -1034,7 +1050,7 @@ def delete_event(
 
     resolved_span = _resolve_span(event, span)
     details = _event_to_dict(event)
-    details["_span"] = resolved_span
+    details["span"] = resolved_span
 
     if dry_run:
         details["_action"] = "dry_run"

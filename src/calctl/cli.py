@@ -317,7 +317,7 @@ def edit(  # noqa: PLR0913
     ] = None,
     span: Annotated[
         str | None,
-        typer.Option("--span", help="Edit span: this or future"),
+        typer.Option("--span", help="Span: this or future (default: auto, see docs)"),
     ] = None,
     dry_run: Annotated[  # noqa: FBT002
         bool,
@@ -363,7 +363,7 @@ def delete(
     event_id: Annotated[str, typer.Argument(help="Event ID")],
     span: Annotated[
         str | None,
-        typer.Option("--span", help="Delete span: this or future"),
+        typer.Option("--span", help="Span: this or future (default: auto, see docs)"),
     ] = None,
     dry_run: Annotated[  # noqa: FBT002
         bool,

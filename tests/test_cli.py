@@ -390,7 +390,7 @@ def test_show_with_date():
 
 
 def test_delete_with_date():
-    ret = {"_action": "deleted", "_span": "this", **FAKE_EVENT}
+    ret = {"_action": "deleted", "span": "this", **FAKE_EVENT}
     with patch("calctl.cli.delete_event", return_value=ret) as mock:
         result = runner.invoke(
             app, ["--format", "json", "delete", "evt-123", "--date", "2026-03-25"]
@@ -407,7 +407,7 @@ def test_delete_with_date():
 
 
 def test_delete_dry_run():
-    ret = {"_action": "dry_run", "_span": "this", **FAKE_EVENT}
+    ret = {"_action": "dry_run", "span": "this", **FAKE_EVENT}
     with patch("calctl.cli.delete_event", return_value=ret) as mock:
         result = runner.invoke(
             app, ["--format", "json", "delete", "evt-123", "--dry-run"]
@@ -417,16 +417,16 @@ def test_delete_dry_run():
         "evt-123", span=None, dry_run=True, date=None,
     )
     data = json.loads(result.output)
-    assert data["_span"] == "this"
+    assert data["span"] == "this"
 
 
 # ---------------------------------------------------------------------------
-# 16c. edit --dry-run
+# 16d. edit --dry-run
 # ---------------------------------------------------------------------------
 
 
 def test_edit_dry_run():
-    ret = {"_action": "dry_run", "_span": "this", **FAKE_EVENT}
+    ret = {"_action": "dry_run", "span": "this", **FAKE_EVENT}
     with patch("calctl.cli.edit_event", return_value=ret) as mock:
         result = runner.invoke(
             app, ["--format", "json", "edit", "evt-123", "--title", "X", "--dry-run"]
@@ -442,7 +442,7 @@ def test_edit_dry_run():
 
 
 def test_edit_with_date():
-    ret = {"_action": "updated", "_span": "this", **FAKE_EVENT}
+    ret = {"_action": "updated", "span": "this", **FAKE_EVENT}
     with patch("calctl.cli.edit_event", return_value=ret) as mock:
         result = runner.invoke(
             app,

@@ -1319,7 +1319,7 @@ class TestDeleteEventDryRun:
 
         result = cal.delete_event("e1", dry_run=True)
         assert result["_action"] == "dry_run"
-        assert result["_span"] == "this"
+        assert result["span"] == "this"
         mock_store.removeEvent_span_error_.assert_not_called()
 
     def test_dry_run_escalates_base_recurring(
@@ -1334,7 +1334,7 @@ class TestDeleteEventDryRun:
 
         result = cal.delete_event("e1", dry_run=True)
         assert result["_action"] == "dry_run"
-        assert result["_span"] == "future"
+        assert result["span"] == "future"
         mock_store.removeEvent_span_error_.assert_not_called()
 
     def test_delete_base_recurring_auto_escalates(
@@ -1350,7 +1350,7 @@ class TestDeleteEventDryRun:
 
         result = cal.delete_event("e1")
         assert result["_action"] == "deleted"
-        assert result["_span"] == "future"
+        assert result["span"] == "future"
         mock_store.removeEvent_span_error_.assert_called_with(
             event, mock_eventkit.EKSpanFutureEvents, None
         )
@@ -1368,10 +1368,22 @@ class TestDeleteEventDryRun:
 
         result = cal.delete_event("e1", span="this")
         assert result["_action"] == "deleted"
-        assert result["_span"] == "this"
+        assert result["span"] == "this"
         mock_store.removeEvent_span_error_.assert_called_with(
             event, mock_eventkit.EKSpanThisEvent, None
         )
+
+    def test_dry_run_invalid_span_raises(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_event
+
+        event = _make_mock_event("e1", "Meeting")
+        mock_store.eventWithIdentifier_.return_value = event
+
+        with pytest.raises(CalctlError, match="Invalid span"):
+            cal.delete_event("e1", span="bogus", dry_run=True)
 
 
 # ---------------------------------------------------------------------------
@@ -1391,7 +1403,7 @@ class TestEditEventDryRun:
 
         result = cal.edit_event("e1", title="New Title", dry_run=True)
         assert result["_action"] == "dry_run"
-        assert result["_span"] == "this"
+        assert result["span"] == "this"
         event.setTitle_.assert_not_called()
         mock_store.saveEvent_span_error_.assert_not_called()
 
@@ -1407,7 +1419,7 @@ class TestEditEventDryRun:
 
         result = cal.edit_event("e1", title="X", dry_run=True)
         assert result["_action"] == "dry_run"
-        assert result["_span"] == "future"
+        assert result["span"] == "future"
         mock_store.saveEvent_span_error_.assert_not_called()
 
     def test_edit_base_recurring_auto_escalates(
@@ -1423,7 +1435,7 @@ class TestEditEventDryRun:
 
         result = cal.edit_event("e1", title="Updated")
         assert result["_action"] == "updated"
-        assert result["_span"] == "future"
+        assert result["span"] == "future"
         mock_store.saveEvent_span_error_.assert_called_with(
             event, mock_eventkit.EKSpanFutureEvents, None
         )
@@ -1441,10 +1453,22 @@ class TestEditEventDryRun:
 
         result = cal.edit_event("e1", title="Updated", span="this")
         assert result["_action"] == "updated"
-        assert result["_span"] == "this"
+        assert result["span"] == "this"
         mock_store.saveEvent_span_error_.assert_called_with(
             event, mock_eventkit.EKSpanThisEvent, None
         )
+
+    def test_dry_run_invalid_span_raises(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_event
+
+        event = _make_mock_event("e1", "Meeting")
+        mock_store.eventWithIdentifier_.return_value = event
+
+        with pytest.raises(CalctlError, match="Invalid span"):
+            cal.edit_event("e1", title="X", span="bogus", dry_run=True)
 
 
 # ---------------------------------------------------------------------------
@@ -1569,7 +1593,7 @@ class TestDeleteEventWithDate:
 
         result = cal.delete_event("e1", date="2026-03-25")
         assert result["_action"] == "deleted"
-        assert result["_span"] == "this"
+        assert result["span"] == "this"
         mock_store.removeEvent_span_error_.assert_called_with(
             occurrence, mock_eventkit.EKSpanThisEvent, None,
         )
@@ -1596,7 +1620,7 @@ class TestEditEventWithDate:
 
         result = cal.edit_event("e1", title="Updated", date="2026-03-25")
         assert result["_action"] == "updated"
-        assert result["_span"] == "this"
+        assert result["span"] == "this"
         occurrence.setTitle_.assert_called_with("Updated")
         mock_store.saveEvent_span_error_.assert_called_with(
             occurrence, mock_eventkit.EKSpanThisEvent, None,

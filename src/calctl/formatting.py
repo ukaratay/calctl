@@ -22,9 +22,12 @@ def format_output(data: Any, fmt: Format) -> str:  # noqa: ANN401
 
 
 def _format_json(data: Any) -> str:  # noqa: ANN401
-    """Format data as JSON. Strips _action key if present."""
+    """Format data as JSON. Strips internal ``_``-prefixed keys."""
     if isinstance(data, dict):
-        data = {k: v for k, v in data.items() if k != "_action"}
+        data = {
+            k: v for k, v in data.items()
+            if not k.startswith("_")
+        }
     return json.dumps(data, indent=2, default=str)
 
 
@@ -149,13 +152,20 @@ def _format_single_event(event: dict[str, Any], prefix: str = "") -> str:  # noq
 
 
 def _format_action(data: dict[str, Any]) -> str:
-    """Format an action result (created/updated/deleted)."""
-    action = data.pop("_action", "")
-    start_date = data.get("start", "")[:10]
+    """Format an action result (created/updated/deleted/dry_run)."""
+    action = data.get("_action", "")
+    # Build a clean copy without internal keys for rendering
+    clean = {k: v for k, v in data.items() if not k.startswith("_")}
+    start_date = clean.get("start", "")[:10]
 
     if action == "deleted":
-        return f"\u2713 Event deleted: {data['title']} ({start_date})"
+        return f"\u2713 Event deleted: {clean['title']} ({start_date})"
+
+    if action == "dry_run":
+        span = data.get("span", "this")
+        prefix = f"[DRY RUN] Would affect (span={span}):"
+        return _format_single_event(clean, prefix=prefix)
 
     prefix_map = {"created": "\u2713 Created:", "updated": "\u2713 Updated:"}
     prefix = prefix_map.get(action, f"\u2713 {action}:")
-    return _format_single_event(data, prefix=prefix)
+    return _format_single_event(clean, prefix=prefix)

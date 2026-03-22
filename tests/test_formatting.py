@@ -404,6 +404,36 @@ class TestTextActionMessages:
         assert "Team Standup" in result
         assert "Alice Smith" in result
 
+    def test_dry_run_action_no_checkmark(self) -> None:
+        data = {**MINIMAL_EVENT.copy(), "_action": "dry_run", "span": "future"}
+        result = format_output(data, Format.text)
+        assert "[DRY RUN]" in result
+        assert "span=future" in result
+        assert "\u2713" not in result
+
+    def test_dry_run_includes_event_details(self) -> None:
+        data = {**MINIMAL_EVENT.copy(), "_action": "dry_run", "span": "this"}
+        result = format_output(data, Format.text)
+        assert "Quick Meet" in result
+
+    def test_action_does_not_mutate_input(self) -> None:
+        data = {**MINIMAL_EVENT.copy(), "_action": "created"}
+        format_output(data, Format.text)
+        assert "_action" in data
+
+    def test_json_strips_all_underscore_keys(self) -> None:
+        data = {**MINIMAL_EVENT.copy(), "_action": "dry_run", "_internal": "x"}
+        result = format_output(data, Format.json)
+        parsed = json.loads(result)
+        assert "_action" not in parsed
+        assert "_internal" not in parsed
+
+    def test_json_keeps_span_field(self) -> None:
+        data = {**MINIMAL_EVENT.copy(), "_action": "dry_run", "span": "future"}
+        result = format_output(data, Format.json)
+        parsed = json.loads(result)
+        assert parsed["span"] == "future"
+
 
 # ---------------------------------------------------------------------------
 # Format enum tests
