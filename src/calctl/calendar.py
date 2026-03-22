@@ -555,8 +555,41 @@ def _apply_geo(event: Any, geo: str, location: str | None) -> None:
     event.setStructuredLocation_(struct_loc)
 
 
+VALID_SPANS = ("this", "future")
+
+
+def _is_base_recurring_event(event: Any) -> bool:
+    """Return True if this is a recurring event's base (not a detached occurrence)."""
+    rules = event.recurrenceRules()
+    has_recurrence = bool(rules and len(rules) > 0)
+    is_detached = bool(event.isDetached())
+    return has_recurrence and not is_detached
+
+
+def _resolve_span(event: Any, span: str) -> str:
+    """Resolve the effective span for a recurring event.
+
+    When *span* is ``"this"`` but the event is the base of a recurring series
+    (not a detached occurrence), auto-escalate to ``"future"`` to prevent
+    accidentally wiping the entire series including past occurrences.
+    """
+    if span == "this" and _is_base_recurring_event(event):
+        logger.warning(
+            "Event %s is the base of a recurring series; "
+            "auto-escalating span from 'this' to 'future' to preserve "
+            "past occurrences. Pass --span explicitly to override.",
+            event.eventIdentifier(),
+        )
+        return "future"
+    return span
+
+
 def _span_constant(span: str) -> Any:
     """Map span string to EKSpan constant."""
+    if span not in VALID_SPANS:
+        raise CalctlError(
+            f"Invalid span: {span!r}. Must be one of: {', '.join(VALID_SPANS)}"
+        )
     EventKit = _import_eventkit()
     if span == "future":
         return EventKit.EKSpanFutureEvents
@@ -767,6 +800,7 @@ def edit_event(
     rrule: str | None = None,
     alarms: list[str] | None = None,
     span: str = "this",
+    dry_run: bool = False,
 ) -> dict[str, Any]:
     """Edit an existing event."""
     EventKit = _import_eventkit()
@@ -777,6 +811,14 @@ def edit_event(
     event = store.eventWithIdentifier_(event_id)
     if event is None:
         raise EventNotFoundError(f"Event not found: {event_id}")
+
+    span = _resolve_span(event, span)
+
+    if dry_run:
+        result = _event_to_dict(event)
+        result["_action"] = "dry_run"
+        result["_span"] = span
+        return result
 
     if title is not None:
         event.setTitle_(title)
@@ -855,10 +897,13 @@ def edit_event(
 
     result = _event_to_dict(event)
     result["_action"] = "updated"
+    result["_span"] = span
     return result
 
 
-def delete_event(event_id: str, span: str = "this") -> dict[str, Any]:
+def delete_event(
+    event_id: str, span: str = "this", dry_run: bool = False,
+) -> dict[str, Any]:
     """Delete an event by ID."""
     store = _get_store()
 
@@ -867,7 +912,14 @@ def delete_event(event_id: str, span: str = "this") -> dict[str, Any]:
     if event is None:
         raise EventNotFoundError(f"Event not found: {event_id}")
 
+    span = _resolve_span(event, span)
     details = _event_to_dict(event)
+    details["_span"] = span
+
+    if dry_run:
+        details["_action"] = "dry_run"
+        return details
+
     ek_span = _span_constant(span)
 
     logger.debug("Deleting event: %s (span=%s)", event_id, span)

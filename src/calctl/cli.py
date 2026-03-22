@@ -281,6 +281,13 @@ def edit(  # noqa: PLR0913
         str,
         typer.Option("--span", help="Edit span: this or future"),
     ] = "this",
+    dry_run: Annotated[  # noqa: FBT002
+        bool,
+        typer.Option(
+            "--dry-run",
+            help="Show what would be changed without saving",
+        ),
+    ] = False,
 ) -> None:
     """Edit an existing event."""
     _validate_alarms(alarm)
@@ -300,6 +307,7 @@ def edit(  # noqa: PLR0913
         rrule=rrule,
         alarms=alarm,
         span=span,
+        dry_run=dry_run,
     )
     _output(result)
 
@@ -311,9 +319,16 @@ def delete(
         str,
         typer.Option("--span", help="Delete span: this or future"),
     ] = "this",
+    dry_run: Annotated[  # noqa: FBT002
+        bool,
+        typer.Option(
+            "--dry-run",
+            help="Show what would be deleted without removing",
+        ),
+    ] = False,
 ) -> None:
     """Delete an event."""
-    result = delete_event(event_id, span=span)
+    result = delete_event(event_id, span=span, dry_run=dry_run)
     _output(result)
 
 
