@@ -356,11 +356,152 @@ class TestEventToDict:
             "alarms",
             "rrule",
             "timezone",
+            "is_recurring",
             "is_detached",
+            "occurrence_date",
             "created",
             "modified",
         }
         assert expected_keys.issubset(result.keys())
+
+    def test_is_recurring_true_with_rules(self, patched_calendar: Any) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_event, _make_mock_recurrence_rule
+
+        rule = _make_mock_recurrence_rule(freq=1)
+        event = _make_mock_event(recurrence_rules=[rule])
+        result = cal._event_to_dict(event)
+        assert result["is_recurring"] is True
+
+    def test_is_recurring_true_if_detached(self, patched_calendar: Any) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_event
+
+        event = _make_mock_event(is_detached=True)
+        result = cal._event_to_dict(event)
+        assert result["is_recurring"] is True
+
+    def test_is_recurring_false_for_normal(self, patched_calendar: Any) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_event
+
+        event = _make_mock_event(recurrence_rules=[], is_detached=False)
+        result = cal._event_to_dict(event)
+        assert result["is_recurring"] is False
+
+    def test_occurrence_date(self, patched_calendar: Any) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_event
+
+        event = _make_mock_event(
+            occurrence_date_iso="2026-03-25T10:00:00",
+        )
+        result = cal._event_to_dict(event)
+        assert result["occurrence_date"] is not None
+        assert "2026-03-25" in result["occurrence_date"]
+
+
+# ---------------------------------------------------------------------------
+# _filter_calendars
+# ---------------------------------------------------------------------------
+
+
+class TestFilterCalendars:
+    def test_no_filters_returns_none(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
+        cal = _get_cal(patched_calendar)
+        result = cal._filter_calendars(mock_store)
+        assert result is None
+
+    def test_include_single(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_calendar
+
+        mock_store.calendarsForEntityType_.return_value = [
+            _make_mock_calendar("Work"),
+            _make_mock_calendar("Personal"),
+        ]
+        result = cal._filter_calendars(mock_store, calendars=["Work"])
+        assert len(result) == 1
+
+    def test_include_multiple(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_calendar
+
+        mock_store.calendarsForEntityType_.return_value = [
+            _make_mock_calendar("Work"),
+            _make_mock_calendar("Personal"),
+            _make_mock_calendar("Family"),
+        ]
+        result = cal._filter_calendars(
+            mock_store, calendars=["Work", "Family"],
+        )
+        assert len(result) == 2
+
+    def test_include_no_match_returns_empty(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_calendar
+
+        mock_store.calendarsForEntityType_.return_value = [
+            _make_mock_calendar("Work"),
+        ]
+        result = cal._filter_calendars(
+            mock_store, calendars=["NonExistent"],
+        )
+        assert result == []
+
+    def test_exclude(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_calendar
+
+        mock_store.calendarsForEntityType_.return_value = [
+            _make_mock_calendar("Work"),
+            _make_mock_calendar("Birthdays"),
+            _make_mock_calendar("US Holidays"),
+        ]
+        result = cal._filter_calendars(
+            mock_store, exclude_calendars=["Birthdays", "US Holidays"],
+        )
+        assert len(result) == 1
+
+    def test_include_and_exclude_combined(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_calendar
+
+        mock_store.calendarsForEntityType_.return_value = [
+            _make_mock_calendar("Work"),
+            _make_mock_calendar("Personal"),
+            _make_mock_calendar("Birthdays"),
+        ]
+        result = cal._filter_calendars(
+            mock_store,
+            calendars=["Work", "Personal"],
+            exclude_calendars=["Personal"],
+        )
+        assert len(result) == 1
+
+    def test_case_insensitive(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_calendar
+
+        mock_store.calendarsForEntityType_.return_value = [
+            _make_mock_calendar("Work"),
+        ]
+        result = cal._filter_calendars(mock_store, calendars=["work"])
+        assert len(result) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -1046,3 +1187,441 @@ class TestRrule:
         with patch.object(real_cal, "_import_eventkit", return_value=mock_eventkit):
             result = real_cal._rrule_to_ek("RRULE:FREQ=YEARLY;BYMONTH=3;BYMONTHDAY=15")
             assert result is not None
+
+
+# ---------------------------------------------------------------------------
+# _span_constant validation
+# ---------------------------------------------------------------------------
+
+
+class TestSpanConstant:
+    def test_this_returns_ek_span(
+        self, patched_calendar: Any, mock_eventkit: MagicMock
+    ) -> None:
+        cal = _get_cal(patched_calendar)
+        result = cal._span_constant("this")
+        assert result == mock_eventkit.EKSpanThisEvent
+
+    def test_future_returns_ek_span(
+        self, patched_calendar: Any, mock_eventkit: MagicMock
+    ) -> None:
+        cal = _get_cal(patched_calendar)
+        result = cal._span_constant("future")
+        assert result == mock_eventkit.EKSpanFutureEvents
+
+    def test_invalid_span_raises(self, patched_calendar: Any) -> None:
+        cal = _get_cal(patched_calendar)
+        with pytest.raises(CalctlError, match="Invalid span"):
+            cal._span_constant("all")
+
+    def test_typo_span_raises(self, patched_calendar: Any) -> None:
+        cal = _get_cal(patched_calendar)
+        with pytest.raises(CalctlError, match="Invalid span"):
+            cal._span_constant("futur")
+
+
+# ---------------------------------------------------------------------------
+# _is_base_recurring_event
+# ---------------------------------------------------------------------------
+
+
+class TestIsBaseRecurringEvent:
+    def test_non_recurring_event(self, patched_calendar: Any) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_event
+
+        event = _make_mock_event(recurrence_rules=[])
+        assert cal._is_base_recurring_event(event) is False
+
+    def test_base_recurring_event(self, patched_calendar: Any) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_event, _make_mock_recurrence_rule
+
+        rule = _make_mock_recurrence_rule(freq=1)
+        event = _make_mock_event(recurrence_rules=[rule], is_detached=False)
+        assert cal._is_base_recurring_event(event) is True
+
+    def test_detached_occurrence(self, patched_calendar: Any) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_event, _make_mock_recurrence_rule
+
+        rule = _make_mock_recurrence_rule(freq=1)
+        event = _make_mock_event(recurrence_rules=[rule], is_detached=True)
+        assert cal._is_base_recurring_event(event) is False
+
+
+# ---------------------------------------------------------------------------
+# _resolve_span — auto-escalation for base recurring events
+# ---------------------------------------------------------------------------
+
+
+class TestResolveSpan:
+    def test_non_recurring_defaults_to_this(self, patched_calendar: Any) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_event
+
+        event = _make_mock_event(recurrence_rules=[])
+        assert cal._resolve_span(event, None) == "this"
+
+    def test_base_recurring_auto_escalates_when_none(
+        self, patched_calendar: Any,
+    ) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_event, _make_mock_recurrence_rule
+
+        rule = _make_mock_recurrence_rule(freq=1)
+        event = _make_mock_event(recurrence_rules=[rule], is_detached=False)
+        assert cal._resolve_span(event, None) == "future"
+
+    def test_explicit_this_respected_on_base_recurring(
+        self, patched_calendar: Any,
+    ) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_event, _make_mock_recurrence_rule
+
+        rule = _make_mock_recurrence_rule(freq=1)
+        event = _make_mock_event(recurrence_rules=[rule], is_detached=False)
+        assert cal._resolve_span(event, "this") == "this"
+
+    def test_explicit_future_unchanged(self, patched_calendar: Any) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_event, _make_mock_recurrence_rule
+
+        rule = _make_mock_recurrence_rule(freq=1)
+        event = _make_mock_event(recurrence_rules=[rule], is_detached=False)
+        assert cal._resolve_span(event, "future") == "future"
+
+    def test_detached_occurrence_defaults_to_this(
+        self, patched_calendar: Any,
+    ) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_event, _make_mock_recurrence_rule
+
+        rule = _make_mock_recurrence_rule(freq=1)
+        event = _make_mock_event(recurrence_rules=[rule], is_detached=True)
+        assert cal._resolve_span(event, None) == "this"
+
+
+# ---------------------------------------------------------------------------
+# delete_event — dry_run and span escalation
+# ---------------------------------------------------------------------------
+
+
+class TestDeleteEventDryRun:
+    def test_dry_run_returns_without_deleting(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_event
+
+        event = _make_mock_event("e1", "Meeting")
+        mock_store.eventWithIdentifier_.return_value = event
+
+        result = cal.delete_event("e1", dry_run=True)
+        assert result["_action"] == "dry_run"
+        assert result["span"] == "this"
+        mock_store.removeEvent_span_error_.assert_not_called()
+
+    def test_dry_run_escalates_base_recurring(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_event, _make_mock_recurrence_rule
+
+        rule = _make_mock_recurrence_rule(freq=1)
+        event = _make_mock_event("e1", "Weekly Sync", recurrence_rules=[rule])
+        mock_store.eventWithIdentifier_.return_value = event
+
+        result = cal.delete_event("e1", dry_run=True)
+        assert result["_action"] == "dry_run"
+        assert result["span"] == "future"
+        mock_store.removeEvent_span_error_.assert_not_called()
+
+    def test_delete_base_recurring_auto_escalates(
+        self, patched_calendar: Any, mock_store: MagicMock, mock_eventkit: MagicMock
+    ) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_event, _make_mock_recurrence_rule
+
+        rule = _make_mock_recurrence_rule(freq=1)
+        event = _make_mock_event("e1", "Weekly Sync", recurrence_rules=[rule])
+        mock_store.eventWithIdentifier_.return_value = event
+        mock_store.removeEvent_span_error_.return_value = (True, None)
+
+        result = cal.delete_event("e1")
+        assert result["_action"] == "deleted"
+        assert result["span"] == "future"
+        mock_store.removeEvent_span_error_.assert_called_with(
+            event, mock_eventkit.EKSpanFutureEvents, None
+        )
+
+    def test_delete_base_recurring_explicit_this_respected(
+        self, patched_calendar: Any, mock_store: MagicMock, mock_eventkit: MagicMock
+    ) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_event, _make_mock_recurrence_rule
+
+        rule = _make_mock_recurrence_rule(freq=1)
+        event = _make_mock_event("e1", "Weekly Sync", recurrence_rules=[rule])
+        mock_store.eventWithIdentifier_.return_value = event
+        mock_store.removeEvent_span_error_.return_value = (True, None)
+
+        result = cal.delete_event("e1", span="this")
+        assert result["_action"] == "deleted"
+        assert result["span"] == "this"
+        mock_store.removeEvent_span_error_.assert_called_with(
+            event, mock_eventkit.EKSpanThisEvent, None
+        )
+
+    def test_dry_run_invalid_span_raises(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_event
+
+        event = _make_mock_event("e1", "Meeting")
+        mock_store.eventWithIdentifier_.return_value = event
+
+        with pytest.raises(CalctlError, match="Invalid span"):
+            cal.delete_event("e1", span="bogus", dry_run=True)
+
+
+# ---------------------------------------------------------------------------
+# edit_event — dry_run and span escalation
+# ---------------------------------------------------------------------------
+
+
+class TestEditEventDryRun:
+    def test_dry_run_returns_without_saving(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_event
+
+        event = _make_mock_event("e1", "Meeting")
+        mock_store.eventWithIdentifier_.return_value = event
+
+        result = cal.edit_event("e1", title="New Title", dry_run=True)
+        assert result["_action"] == "dry_run"
+        assert result["span"] == "this"
+        event.setTitle_.assert_not_called()
+        mock_store.saveEvent_span_error_.assert_not_called()
+
+    def test_dry_run_escalates_base_recurring(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_event, _make_mock_recurrence_rule
+
+        rule = _make_mock_recurrence_rule(freq=1)
+        event = _make_mock_event("e1", "Weekly Sync", recurrence_rules=[rule])
+        mock_store.eventWithIdentifier_.return_value = event
+
+        result = cal.edit_event("e1", title="X", dry_run=True)
+        assert result["_action"] == "dry_run"
+        assert result["span"] == "future"
+        mock_store.saveEvent_span_error_.assert_not_called()
+
+    def test_edit_base_recurring_auto_escalates(
+        self, patched_calendar: Any, mock_store: MagicMock, mock_eventkit: MagicMock
+    ) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_event, _make_mock_recurrence_rule
+
+        rule = _make_mock_recurrence_rule(freq=1)
+        event = _make_mock_event("e1", "Weekly Sync", recurrence_rules=[rule])
+        mock_store.eventWithIdentifier_.return_value = event
+        mock_store.saveEvent_span_error_.return_value = (True, None)
+
+        result = cal.edit_event("e1", title="Updated")
+        assert result["_action"] == "updated"
+        assert result["span"] == "future"
+        mock_store.saveEvent_span_error_.assert_called_with(
+            event, mock_eventkit.EKSpanFutureEvents, None
+        )
+
+    def test_edit_base_recurring_explicit_this_respected(
+        self, patched_calendar: Any, mock_store: MagicMock, mock_eventkit: MagicMock
+    ) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_event, _make_mock_recurrence_rule
+
+        rule = _make_mock_recurrence_rule(freq=1)
+        event = _make_mock_event("e1", "Weekly Sync", recurrence_rules=[rule])
+        mock_store.eventWithIdentifier_.return_value = event
+        mock_store.saveEvent_span_error_.return_value = (True, None)
+
+        result = cal.edit_event("e1", title="Updated", span="this")
+        assert result["_action"] == "updated"
+        assert result["span"] == "this"
+        mock_store.saveEvent_span_error_.assert_called_with(
+            event, mock_eventkit.EKSpanThisEvent, None
+        )
+
+    def test_dry_run_invalid_span_raises(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_event
+
+        event = _make_mock_event("e1", "Meeting")
+        mock_store.eventWithIdentifier_.return_value = event
+
+        with pytest.raises(CalctlError, match="Invalid span"):
+            cal.edit_event("e1", title="X", span="bogus", dry_run=True)
+
+
+# ---------------------------------------------------------------------------
+# _find_occurrence
+# ---------------------------------------------------------------------------
+
+
+class TestFindOccurrence:
+    def test_finds_matching_occurrence(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_event
+
+        occurrence = _make_mock_event("e1", "Weekly Sync")
+        other = _make_mock_event("e2", "Other Event")
+        mock_store.eventsMatchingPredicate_.return_value = [other, occurrence]
+
+        result = cal._find_occurrence(mock_store, "e1", "2026-03-25")
+        assert result is occurrence
+
+    def test_raises_when_no_match(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_event
+
+        other = _make_mock_event("e2", "Other Event")
+        mock_store.eventsMatchingPredicate_.return_value = [other]
+
+        with pytest.raises(EventNotFoundError, match="No occurrence"):
+            cal._find_occurrence(mock_store, "e1", "2026-03-25")
+
+    def test_raises_when_no_events(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
+        cal = _get_cal(patched_calendar)
+        mock_store.eventsMatchingPredicate_.return_value = []
+
+        with pytest.raises(EventNotFoundError, match="No occurrence"):
+            cal._find_occurrence(mock_store, "e1", "2026-03-25")
+
+    def test_datetime_disambiguates_same_day_occurrences(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
+        """Two occurrences of the same event on the same day.
+
+        With a date-only query both would match (first wins).
+        With a datetime query the 1h window ensures only the targeted
+        occurrence is in the result set.
+        """
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_event
+
+        morning = _make_mock_event("e1", "Standup", start_iso="2026-03-25T09:00:00")
+        afternoon = _make_mock_event("e1", "Standup", start_iso="2026-03-25T14:00:00")
+
+        # Simulate: datetime query for 14:00 → only afternoon in results
+        mock_store.eventsMatchingPredicate_.return_value = [afternoon]
+        result = cal._find_occurrence(mock_store, "e1", "2026-03-25T14:00:00")
+        assert result is afternoon
+
+        # Simulate: date-only query → both match, first wins
+        mock_store.eventsMatchingPredicate_.return_value = [morning, afternoon]
+        result = cal._find_occurrence(mock_store, "e1", "2026-03-25")
+        assert result is morning
+
+
+# ---------------------------------------------------------------------------
+# get_event with --date
+# ---------------------------------------------------------------------------
+
+
+class TestGetEventWithDate:
+    def test_get_event_with_date_uses_occurrence(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_event
+
+        occurrence = _make_mock_event("e1", "Weekly Sync")
+        mock_store.eventsMatchingPredicate_.return_value = [occurrence]
+
+        result = cal.get_event("e1", date="2026-03-25")
+        assert result["id"] == "e1"
+        # Should NOT have called eventWithIdentifier_
+        mock_store.eventWithIdentifier_.assert_not_called()
+
+    def test_get_event_without_date_uses_identifier(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_event
+
+        event = _make_mock_event("e1", "Meeting")
+        mock_store.eventWithIdentifier_.return_value = event
+
+        result = cal.get_event("e1")
+        assert result["id"] == "e1"
+        mock_store.eventWithIdentifier_.assert_called_once_with("e1")
+
+
+# ---------------------------------------------------------------------------
+# delete_event with --date
+# ---------------------------------------------------------------------------
+
+
+class TestDeleteEventWithDate:
+    def test_delete_occurrence_by_date(
+        self, patched_calendar: Any, mock_store: MagicMock, mock_eventkit: MagicMock
+    ) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_event, _make_mock_recurrence_rule
+
+        # Occurrence is detached → not base recurring → default span = "this"
+        rule = _make_mock_recurrence_rule(freq=1)
+        occurrence = _make_mock_event(
+            "e1", "Weekly Sync", recurrence_rules=[rule], is_detached=True,
+        )
+        mock_store.eventsMatchingPredicate_.return_value = [occurrence]
+        mock_store.removeEvent_span_error_.return_value = (True, None)
+
+        result = cal.delete_event("e1", date="2026-03-25")
+        assert result["_action"] == "deleted"
+        assert result["span"] == "this"
+        mock_store.removeEvent_span_error_.assert_called_with(
+            occurrence, mock_eventkit.EKSpanThisEvent, None,
+        )
+
+
+# ---------------------------------------------------------------------------
+# edit_event with --date
+# ---------------------------------------------------------------------------
+
+
+class TestEditEventWithDate:
+    def test_edit_occurrence_by_date(
+        self, patched_calendar: Any, mock_store: MagicMock, mock_eventkit: MagicMock
+    ) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_event, _make_mock_recurrence_rule
+
+        rule = _make_mock_recurrence_rule(freq=1)
+        occurrence = _make_mock_event(
+            "e1", "Weekly Sync", recurrence_rules=[rule], is_detached=True,
+        )
+        mock_store.eventsMatchingPredicate_.return_value = [occurrence]
+        mock_store.saveEvent_span_error_.return_value = (True, None)
+
+        result = cal.edit_event("e1", title="Updated", date="2026-03-25")
+        assert result["_action"] == "updated"
+        assert result["span"] == "this"
+        occurrence.setTitle_.assert_called_with("Updated")
+        mock_store.saveEvent_span_error_.assert_called_with(
+            occurrence, mock_eventkit.EKSpanThisEvent, None,
+        )

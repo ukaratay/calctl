@@ -1,6 +1,6 @@
 [project]
 name = "calctl"
-version = "0.1.0"
+version = "0.1.1"
 description = "macOS Calendar CLI using EventKit"
 readme = "README.md"
 license = "MIT"
@@ -101,6 +101,8 @@ indent-style = "space"
 [tool.pyright]
 pythonVersion = "3.10"
 typeCheckingMode = "strict"
+venvPath = "."
+venv = ".venv"
 reportMissingTypeStubs = "warning"
 reportUnknownMemberType = "warning"
 reportUnknownArgumentType = "warning"

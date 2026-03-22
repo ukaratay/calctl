@@ -33,7 +33,9 @@ FULL_EVENT: dict = {
     "alarms": ["-PT15M", "-PT5M"],
     "rrule": "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",
     "timezone": "America/New_York",
+    "is_recurring": True,
     "is_detached": False,
+    "occurrence_date": "2026-03-19T09:00:00",
     "geo": {"lat": 40.7128, "lng": -74.0060},
     "created": "2026-01-01T00:00:00",
     "modified": "2026-03-01T00:00:00",
@@ -56,7 +58,9 @@ MINIMAL_EVENT: dict = {
     "alarms": None,
     "rrule": None,
     "timezone": None,
+    "is_recurring": False,
     "is_detached": False,
+    "occurrence_date": None,
     "geo": None,
     "created": None,
     "modified": None,
@@ -79,7 +83,9 @@ ALL_DAY_EVENT: dict = {
     "alarms": None,
     "rrule": None,
     "timezone": None,
+    "is_recurring": False,
     "is_detached": False,
+    "occurrence_date": None,
     "geo": None,
     "created": None,
     "modified": None,
@@ -102,7 +108,9 @@ RECURRING_EVENT: dict = {
     "alarms": None,
     "rrule": "FREQ=WEEKLY;BYDAY=FR",
     "timezone": None,
+    "is_recurring": True,
     "is_detached": False,
+    "occurrence_date": "2026-03-20T10:00:00",
     "geo": None,
     "created": None,
     "modified": None,
@@ -395,6 +403,36 @@ class TestTextActionMessages:
         assert "\u2713 Created:" in result
         assert "Team Standup" in result
         assert "Alice Smith" in result
+
+    def test_dry_run_action_no_checkmark(self) -> None:
+        data = {**MINIMAL_EVENT.copy(), "_action": "dry_run", "span": "future"}
+        result = format_output(data, Format.text)
+        assert "[DRY RUN]" in result
+        assert "span=future" in result
+        assert "\u2713" not in result
+
+    def test_dry_run_includes_event_details(self) -> None:
+        data = {**MINIMAL_EVENT.copy(), "_action": "dry_run", "span": "this"}
+        result = format_output(data, Format.text)
+        assert "Quick Meet" in result
+
+    def test_action_does_not_mutate_input(self) -> None:
+        data = {**MINIMAL_EVENT.copy(), "_action": "created"}
+        format_output(data, Format.text)
+        assert "_action" in data
+
+    def test_json_strips_all_underscore_keys(self) -> None:
+        data = {**MINIMAL_EVENT.copy(), "_action": "dry_run", "_internal": "x"}
+        result = format_output(data, Format.json)
+        parsed = json.loads(result)
+        assert "_action" not in parsed
+        assert "_internal" not in parsed
+
+    def test_json_keeps_span_field(self) -> None:
+        data = {**MINIMAL_EVENT.copy(), "_action": "dry_run", "span": "future"}
+        result = format_output(data, Format.json)
+        parsed = json.loads(result)
+        assert parsed["span"] == "future"
 
 
 # ---------------------------------------------------------------------------

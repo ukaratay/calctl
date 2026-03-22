@@ -118,6 +118,7 @@ def _make_mock_event(
     created_iso: str | None = "2026-03-18T09:00:00",
     modified_iso: str | None = "2026-03-18T15:00:00",
     struct_location: Any = None,
+    occurrence_date_iso: str | None = None,
 ) -> MagicMock:
     event = MagicMock(name=f"EKEvent({event_id})")
     event.eventIdentifier.return_value = event_id
@@ -155,6 +156,10 @@ def _make_mock_event(
         event.URL.return_value = ns_url
     else:
         event.URL.return_value = None
+
+    # occurrenceDate: defaults to start if not given
+    occ_iso = occurrence_date_iso or start_iso
+    event.occurrenceDate.return_value = _make_ns_date_mock(occ_iso)
 
     return event
 
