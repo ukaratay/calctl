@@ -11,11 +11,14 @@
 ## Features
 
 - **List calendars** — see all calendars with their source and type
-- **List events** — browse events in any date range, optionally filtered by calendar
+- **List events** — browse events in any date range, filter by one or more calendars, exclude calendars
 - **Search events** — full-text search across titles, notes, and locations
 - **Create events** — all-day or timed events with full metadata
 - **Edit events** — update any field; control whether edits apply to this occurrence or all future occurrences
 - **Delete events** — single occurrence or this-and-future for recurring events
+- **Recurring event safety** — auto-protects against accidentally wiping entire series when operating on the base event
+- **Occurrence targeting** — `--date` flag to target a specific occurrence of a recurring event
+- **Dry-run mode** — preview what `delete` and `edit` would do without making changes
 - **Full EventKit support** — recurrence rules (RRULE), alarms, attendees, availability, geo coordinates, timezones
 - **JSON and human-readable text output** — choose your format explicitly or let calctl detect it
 - **Auto-detects output format** — JSON when piped, text when run in a terminal
@@ -56,6 +59,12 @@ calctl list --from 2026-03-19 --to 2026-03-26
 # List events from a specific calendar
 calctl list --calendar Work
 
+# List events from multiple calendars
+calctl list --calendar Work --calendar Family
+
+# List events excluding certain calendars
+calctl list --exclude-calendar Birthdays --exclude-calendar "US Holidays"
+
 # Search events by keyword
 calctl search "meeting"
 
@@ -64,6 +73,9 @@ calctl search "standup" --from 2026-03-01 --to 2026-03-31 --calendar Work
 
 # Show full details for an event
 calctl show EVENT_ID
+
+# Show a specific occurrence of a recurring event
+calctl show EVENT_ID --date 2026-03-25
 
 # Create a timed event
 calctl create --title "Team Standup" --start 2026-03-20T09:00:00 --end 2026-03-20T09:30:00 --calendar Work
@@ -92,11 +104,20 @@ calctl edit EVENT_ID --title "Updated Title" --location "Room 42"
 # Edit a recurring event — this and all future occurrences
 calctl edit EVENT_ID --title "Renamed Series" --span future
 
+# Edit a specific occurrence by date
+calctl edit EVENT_ID --date 2026-03-25 --title "Updated" --span this
+
+# Preview what a delete would do
+calctl delete EVENT_ID --dry-run
+
 # Delete an event
 calctl delete EVENT_ID
 
-# Delete a recurring event — this occurrence only
-calctl delete EVENT_ID --span this
+# Delete a specific occurrence of a recurring event
+calctl delete EVENT_ID --date 2026-03-25 --span this
+
+# Delete this and all future occurrences
+calctl delete EVENT_ID --span future
 ```
 
 ## CLI Reference
@@ -140,7 +161,8 @@ calctl list [OPTIONS]
 |--------|------|---------|-------------|
 | `--from` | `YYYY-MM-DD` | today | Start date (inclusive). |
 | `--to` | `YYYY-MM-DD` | today + 7 days | End date (inclusive). |
-| `--calendar` | string | (all calendars) | Filter by calendar name. |
+| `--calendar` | string | (all calendars) | Filter by calendar name. Repeatable for multiple calendars. |
+| `--exclude-calendar` | string | (none) | Exclude calendar by name. Repeatable. |
 
 **Examples:**
 
@@ -148,6 +170,8 @@ calctl list [OPTIONS]
 calctl list
 calctl list --from 2026-03-01 --to 2026-03-31
 calctl list --calendar Personal
+calctl list --calendar Work --calendar Family
+calctl list --exclude-calendar Birthdays --exclude-calendar "US Holidays"
 ```
 
 ---
@@ -165,7 +189,8 @@ calctl search QUERY [OPTIONS]
 | `QUERY` | string | required | Search keyword(s). |
 | `--from` | `YYYY-MM-DD` | (no limit) | Restrict search start date. |
 | `--to` | `YYYY-MM-DD` | (no limit) | Restrict search end date. |
-| `--calendar` | string | (all calendars) | Filter by calendar name. |
+| `--calendar` | string | (all calendars) | Filter by calendar name. Repeatable for multiple calendars. |
+| `--exclude-calendar` | string | (none) | Exclude calendar by name. Repeatable. |
 
 **Examples:**
 
@@ -173,6 +198,7 @@ calctl search QUERY [OPTIONS]
 calctl search "team meeting"
 calctl search "invoice" --from 2026-01-01 --to 2026-03-31
 calctl search "standup" --calendar Work
+calctl search "meeting" --calendar Work --calendar Personal
 ```
 
 ---
@@ -182,12 +208,20 @@ calctl search "standup" --calendar Work
 Show full details for a single event, including recurrence, alarms, and attendees.
 
 ```bash
-calctl show EVENT_ID
+calctl show EVENT_ID [OPTIONS]
 ```
 
-| Argument | Type | Description |
-|----------|------|-------------|
-| `EVENT_ID` | string | Event identifier (from `list` or `search` output). |
+| Argument/Option | Type | Default | Description |
+|-----------------|------|---------|-------------|
+| `EVENT_ID` | string | **required** | Event identifier (from `list` or `search` output). |
+| `--date` | `YYYY-MM-DD` | | Show the specific occurrence on this date instead of the base event. |
+
+**Examples:**
+
+```bash
+calctl show EVENT_ID
+calctl show EVENT_ID --date 2026-03-25
+```
 
 ---
 
@@ -268,7 +302,9 @@ calctl edit EVENT_ID [OPTIONS]
 | `--timezone` | string | | New timezone. |
 | `--rrule` | RRULE string | | New recurrence rule. |
 | `--alarm` | duration | | New alarm(s). Repeatable. Use `--alarm ""` to clear all alarms. |
-| `--span` | `this\|future` | `this` | For recurring events: edit only this occurrence (`this`) or this and all future occurrences (`future`). |
+| `--span` | `this\|future` | auto | For recurring events: edit only this occurrence (`this`) or this and all future occurrences (`future`). See [Recurring Events](#recurring-events). |
+| `--date` | `YYYY-MM-DD` | | Target the occurrence on this date instead of the base event. |
+| `--dry-run` | flag | false | Show what would be changed without saving. |
 
 **Examples:**
 
@@ -282,8 +318,14 @@ calctl edit EVENT_ID --start 2026-03-21T10:00:00 --end 2026-03-21T11:00:00
 # Edit all future occurrences of a recurring event
 calctl edit EVENT_ID --title "Renamed Series" --span future
 
+# Edit a specific occurrence by date
+calctl edit EVENT_ID --date 2026-03-25 --title "One-off change" --span this
+
 # Move event to a different calendar
 calctl edit EVENT_ID --calendar Personal
+
+# Preview what would change
+calctl edit EVENT_ID --title "New Name" --dry-run
 ```
 
 ---
@@ -299,7 +341,9 @@ calctl delete EVENT_ID [OPTIONS]
 | Argument/Option | Type | Default | Description |
 |-----------------|------|---------|-------------|
 | `EVENT_ID` | string | **required** | Event to delete. |
-| `--span` | `this\|future` | `this` | For recurring events: delete only this occurrence (`this`) or this and all future occurrences (`future`). |
+| `--span` | `this\|future` | auto | For recurring events: delete only this occurrence (`this`) or this and all future occurrences (`future`). See [Recurring Events](#recurring-events). |
+| `--date` | `YYYY-MM-DD` | | Target the occurrence on this date instead of the base event. |
+| `--dry-run` | flag | false | Show what would be deleted without removing. |
 
 **Examples:**
 
@@ -309,7 +353,47 @@ calctl delete EVENT_ID
 
 # Delete this and all future occurrences
 calctl delete EVENT_ID --span future
+
+# Delete a specific occurrence by date
+calctl delete EVENT_ID --date 2026-03-25 --span this
+
+# Preview what would be deleted
+calctl delete EVENT_ID --dry-run
 ```
+
+---
+
+## Recurring Events
+
+calctl includes safety features to prevent accidentally modifying or deleting an entire recurring series.
+
+### Span behavior
+
+The `--span` flag on `edit` and `delete` controls whether the operation applies to a single occurrence or all future occurrences. When `--span` is **not** explicitly passed, calctl auto-detects:
+
+- **Non-recurring event** → uses `this` (single event)
+- **Base recurring event** (the series root, not a specific occurrence) → auto-escalates to `future` to preserve past occurrences, with a warning on stderr
+
+If you explicitly pass `--span this` or `--span future`, your choice is always respected.
+
+### Targeting a specific occurrence
+
+`list` and `search` return the base event ID for recurring events. To target a specific occurrence, use `--date`:
+
+```bash
+# See the specific occurrence
+calctl show EVENT_ID --date 2026-03-25
+
+# Edit just that occurrence
+calctl edit EVENT_ID --date 2026-03-25 --title "Rescheduled" --span this
+
+# Delete just that occurrence
+calctl delete EVENT_ID --date 2026-03-25 --span this
+```
+
+### Identifying recurring events
+
+Event output includes `is_recurring` and `occurrence_date` fields. In text format, recurring events show `Recurring: yes` with the recurrence rule. In list format, recurring events show a 🔁 icon with the RRULE.
 
 ---
 
