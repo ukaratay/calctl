@@ -100,14 +100,29 @@ def list_cmd(
         typer.Option("--to", help="End date YYYY-MM-DD (default: +7 days)"),
     ] = "",
     calendar: Annotated[
-        str | None,
-        typer.Option("--calendar", help="Filter by calendar name"),
+        list[str] | None,
+        typer.Option(
+            "--calendar",
+            help="Filter by calendar name (repeatable)",
+        ),
+    ] = None,
+    exclude_calendar: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--exclude-calendar",
+            help="Exclude calendar (repeatable)",
+        ),
     ] = None,
 ) -> None:
     """List events in a date range."""
     from_date = from_date or _today()
     to_date = to_date or _next_week()
-    result = list_events(from_date, to_date, calendar)
+    result = list_events(
+        from_date,
+        to_date,
+        calendars=calendar,
+        exclude_calendars=exclude_calendar,
+    )
     _output(result)
 
 
@@ -123,12 +138,28 @@ def search(
         typer.Option("--to", help="End date YYYY-MM-DD"),
     ] = None,
     calendar: Annotated[
-        str | None,
-        typer.Option("--calendar", help="Filter by calendar name"),
+        list[str] | None,
+        typer.Option(
+            "--calendar",
+            help="Filter by calendar name (repeatable)",
+        ),
+    ] = None,
+    exclude_calendar: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--exclude-calendar",
+            help="Exclude calendar (repeatable)",
+        ),
     ] = None,
 ) -> None:
     """Search events by keyword."""
-    result = search_events(query, from_date, to_date, calendar)
+    result = search_events(
+        query,
+        from_date,
+        to_date,
+        calendars=calendar,
+        exclude_calendars=exclude_calendar,
+    )
     _output(result)
 
 

@@ -125,7 +125,15 @@ def _format_single_event(event: dict[str, Any], prefix: str = "") -> str:  # noq
     if alarms:
         lines.append(f"{'Alarms:':<14}{', '.join(alarms)}")
 
-    if event.get("rrule"):
+    if event.get("is_recurring"):
+        lines.append(f"{'Recurring:':<14}yes")
+        if event.get("rrule"):
+            lines.append(f"{'Recurrence:':<14}{event['rrule']}")
+        if event.get("occurrence_date"):
+            lines.append(
+                f"{'Occurrence:':<14}{event['occurrence_date']}"
+            )
+    elif event.get("rrule"):
         lines.append(f"{'Recurrence:':<14}{event['rrule']}")
 
     if event.get("timezone"):

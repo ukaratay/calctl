@@ -492,8 +492,14 @@ def _event_to_dict(event: Any) -> dict[str, Any]:
     tz = event.timeZone()
     timezone: str | None = str(tz.name()) if tz is not None else None
 
-    # is_detached
+    # is_detached / is_recurring
     is_detached = bool(event.isDetached())
+    has_rules = bool(raw_rules)
+    is_recurring = has_rules or is_detached
+
+    # occurrence_date — the date of this specific occurrence
+    occ_date = event.occurrenceDate()
+    occurrence_date = _format_date_optional(occ_date)
 
     # Created / modified
     created = _format_date_optional(event.creationDate())
@@ -517,7 +523,9 @@ def _event_to_dict(event: Any) -> dict[str, Any]:
         "alarms": alarms,
         "rrule": rrule,
         "timezone": timezone,
+        "is_recurring": is_recurring,
         "is_detached": is_detached,
+        "occurrence_date": occurrence_date,
         "created": created,
         "modified": modified,
     }
@@ -641,13 +649,55 @@ def list_calendars() -> list[dict[str, str]]:
     return [{"name": str(c.title()), "id": str(c.calendarIdentifier())} for c in cals]
 
 
+def _filter_calendars(
+    store: Any,
+    calendars: list[str] | None = None,
+    exclude_calendars: list[str] | None = None,
+) -> list[Any] | None:
+    """Resolve include/exclude calendar names to EKCalendar objects.
+
+    Returns ``None`` when no filtering is needed (all calendars).
+    Returns an empty list when no calendars match (caller should return []).
+    """
+    EventKit = _import_eventkit()
+    if not calendars and not exclude_calendars:
+        return None
+
+    all_cals = store.calendarsForEntityType_(EventKit.EKEntityTypeEvent)
+
+    if exclude_calendars:
+        exclude_lower = {n.lower() for n in exclude_calendars}
+        filtered = [
+            c for c in all_cals
+            if str(c.title()).lower() not in exclude_lower
+        ]
+        if calendars:
+            include_lower = {n.lower() for n in calendars}
+            filtered = [
+                c for c in filtered
+                if str(c.title()).lower() in include_lower
+            ]
+        return filtered
+
+    # include only
+    include_lower = {n.lower() for n in calendars}  # type: ignore[union-attr]
+    matched = [
+        c for c in all_cals
+        if str(c.title()).lower() in include_lower
+    ]
+    if not matched:
+        logger.debug("No calendars matched %r", calendars)
+    return matched
+
+
 def list_events(
     from_date: str,
     to_date: str,
     calendar: str | None = None,
+    calendars: list[str] | None = None,
+    exclude_calendars: list[str] | None = None,
 ) -> list[dict[str, Any]]:
     """List events in a date range, optionally filtered by calendar name."""
-    EventKit = _import_eventkit()
     store = _get_store()
 
     start = _ns_date(from_date)
@@ -658,17 +708,15 @@ def list_events(
     if start.compare_(end) != Foundation.NSOrderedAscending:
         raise DateParseError("Start date must be before end date")
 
-    calendars = None
-    if calendar:
-        all_cals = store.calendarsForEntityType_(EventKit.EKEntityTypeEvent)
-        calendars = [c for c in all_cals if str(c.title()).lower() == calendar.lower()]
-        if not calendars:
-            logger.debug("Calendar %r not found, returning empty list", calendar)
-            return []
+    # Backwards-compatible: single calendar -> list
+    include = calendars or ([calendar] if calendar else None)
+    ek_cals = _filter_calendars(store, include, exclude_calendars)
+    if ek_cals is not None and not ek_cals:
+        return []
 
     logger.debug("Creating predicate for events %s - %s", from_date, to_date)
     predicate = store.predicateForEventsWithStartDate_endDate_calendars_(
-        start, end, calendars
+        start, end, ek_cals
     )
     events = store.eventsMatchingPredicate_(predicate)
     return [_event_to_dict(e) for e in (events or [])]
@@ -679,28 +727,32 @@ def search_events(
     from_date: str | None = None,
     to_date: str | None = None,
     calendar: str | None = None,
+    calendars: list[str] | None = None,
+    exclude_calendars: list[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Search events by keyword in title, notes, or location."""
-    EventKit = _import_eventkit()
     Foundation = _import_foundation()
     store = _get_store()
 
     now = Foundation.NSDate.date()
     start = (
-        _ns_date(from_date) if from_date else now.dateByAddingTimeInterval_(-30 * 86400)
+        _ns_date(from_date)
+        if from_date
+        else now.dateByAddingTimeInterval_(-30 * 86400)
     )
-    end = _ns_date(to_date) if to_date else now.dateByAddingTimeInterval_(90 * 86400)
+    end = (
+        _ns_date(to_date)
+        if to_date
+        else now.dateByAddingTimeInterval_(90 * 86400)
+    )
 
-    calendars = None
-    if calendar:
-        all_cals = store.calendarsForEntityType_(EventKit.EKEntityTypeEvent)
-        cal_list = [c for c in all_cals if str(c.title()).lower() == calendar.lower()]
-        if not cal_list:
-            return []
-        calendars = cal_list
+    include = calendars or ([calendar] if calendar else None)
+    ek_cals = _filter_calendars(store, include, exclude_calendars)
+    if ek_cals is not None and not ek_cals:
+        return []
 
     predicate = store.predicateForEventsWithStartDate_endDate_calendars_(
-        start, end, calendars
+        start, end, ek_cals
     )
     events = store.eventsMatchingPredicate_(predicate) or []
 

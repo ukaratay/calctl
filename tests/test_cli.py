@@ -76,7 +76,9 @@ def test_list_default_dates():
     with patch("calctl.cli.list_events", return_value=[]) as mock:
         result = runner.invoke(app, ["--format", "text", "list"])
     assert result.exit_code == 0
-    mock.assert_called_once_with(today, next_week, None)
+    mock.assert_called_once_with(
+        today, next_week, calendars=None, exclude_calendars=None,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -88,8 +90,8 @@ def test_list_with_calendar():
     with patch("calctl.cli.list_events", return_value=[]) as mock:
         result = runner.invoke(app, ["--format", "text", "list", "--calendar", "Work"])
     assert result.exit_code == 0
-    args = mock.call_args
-    assert args[0][2] == "Work" or args[1].get("calendar") == "Work"
+    kw = mock.call_args[1]
+    assert kw["calendars"] == ["Work"]
 
 
 # ---------------------------------------------------------------------------
@@ -115,7 +117,9 @@ def test_search():
     with patch("calctl.cli.search_events", return_value=[FAKE_EVENT]) as mock:
         result = runner.invoke(app, ["--format", "json", "search", "meeting"])
     assert result.exit_code == 0
-    mock.assert_called_once_with("meeting", None, None, None)
+    mock.assert_called_once_with(
+        "meeting", None, None, calendars=None, exclude_calendars=None,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -130,7 +134,63 @@ def test_search_with_calendar():
             ["--format", "text", "search", "meeting", "--calendar", "Work"],
         )
     assert result.exit_code == 0
-    mock.assert_called_once_with("meeting", None, None, "Work")
+    kw = mock.call_args[1]
+    assert kw["calendars"] == ["Work"]
+
+
+# ---------------------------------------------------------------------------
+# 8b. list --calendar repeatable
+# ---------------------------------------------------------------------------
+
+
+def test_list_multi_calendar():
+    with patch("calctl.cli.list_events", return_value=[]) as mock:
+        result = runner.invoke(
+            app,
+            ["--format", "text", "list", "--calendar", "Work", "--calendar", "Family"],
+        )
+    assert result.exit_code == 0
+    kw = mock.call_args[1]
+    assert kw["calendars"] == ["Work", "Family"]
+
+
+# ---------------------------------------------------------------------------
+# 8c. list --exclude-calendar
+# ---------------------------------------------------------------------------
+
+
+def test_list_exclude_calendar():
+    with patch("calctl.cli.list_events", return_value=[]) as mock:
+        result = runner.invoke(
+            app,
+            [
+                "--format", "text", "list",
+                "--exclude-calendar", "Birthdays",
+                "--exclude-calendar", "US Holidays",
+            ],
+        )
+    assert result.exit_code == 0
+    kw = mock.call_args[1]
+    assert kw["exclude_calendars"] == ["Birthdays", "US Holidays"]
+
+
+# ---------------------------------------------------------------------------
+# 8d. search --calendar repeatable
+# ---------------------------------------------------------------------------
+
+
+def test_search_multi_calendar():
+    with patch("calctl.cli.search_events", return_value=[]) as mock:
+        result = runner.invoke(
+            app,
+            [
+                "--format", "text", "search", "meeting",
+                "--calendar", "Work", "--calendar", "Personal",
+            ],
+        )
+    assert result.exit_code == 0
+    kw = mock.call_args[1]
+    assert kw["calendars"] == ["Work", "Personal"]
 
 
 # ---------------------------------------------------------------------------

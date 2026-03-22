@@ -356,11 +356,152 @@ class TestEventToDict:
             "alarms",
             "rrule",
             "timezone",
+            "is_recurring",
             "is_detached",
+            "occurrence_date",
             "created",
             "modified",
         }
         assert expected_keys.issubset(result.keys())
+
+    def test_is_recurring_true_with_rules(self, patched_calendar: Any) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_event, _make_mock_recurrence_rule
+
+        rule = _make_mock_recurrence_rule(freq=1)
+        event = _make_mock_event(recurrence_rules=[rule])
+        result = cal._event_to_dict(event)
+        assert result["is_recurring"] is True
+
+    def test_is_recurring_true_if_detached(self, patched_calendar: Any) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_event
+
+        event = _make_mock_event(is_detached=True)
+        result = cal._event_to_dict(event)
+        assert result["is_recurring"] is True
+
+    def test_is_recurring_false_for_normal(self, patched_calendar: Any) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_event
+
+        event = _make_mock_event(recurrence_rules=[], is_detached=False)
+        result = cal._event_to_dict(event)
+        assert result["is_recurring"] is False
+
+    def test_occurrence_date(self, patched_calendar: Any) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_event
+
+        event = _make_mock_event(
+            occurrence_date_iso="2026-03-25T10:00:00",
+        )
+        result = cal._event_to_dict(event)
+        assert result["occurrence_date"] is not None
+        assert "2026-03-25" in result["occurrence_date"]
+
+
+# ---------------------------------------------------------------------------
+# _filter_calendars
+# ---------------------------------------------------------------------------
+
+
+class TestFilterCalendars:
+    def test_no_filters_returns_none(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
+        cal = _get_cal(patched_calendar)
+        result = cal._filter_calendars(mock_store)
+        assert result is None
+
+    def test_include_single(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_calendar
+
+        mock_store.calendarsForEntityType_.return_value = [
+            _make_mock_calendar("Work"),
+            _make_mock_calendar("Personal"),
+        ]
+        result = cal._filter_calendars(mock_store, calendars=["Work"])
+        assert len(result) == 1
+
+    def test_include_multiple(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_calendar
+
+        mock_store.calendarsForEntityType_.return_value = [
+            _make_mock_calendar("Work"),
+            _make_mock_calendar("Personal"),
+            _make_mock_calendar("Family"),
+        ]
+        result = cal._filter_calendars(
+            mock_store, calendars=["Work", "Family"],
+        )
+        assert len(result) == 2
+
+    def test_include_no_match_returns_empty(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_calendar
+
+        mock_store.calendarsForEntityType_.return_value = [
+            _make_mock_calendar("Work"),
+        ]
+        result = cal._filter_calendars(
+            mock_store, calendars=["NonExistent"],
+        )
+        assert result == []
+
+    def test_exclude(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_calendar
+
+        mock_store.calendarsForEntityType_.return_value = [
+            _make_mock_calendar("Work"),
+            _make_mock_calendar("Birthdays"),
+            _make_mock_calendar("US Holidays"),
+        ]
+        result = cal._filter_calendars(
+            mock_store, exclude_calendars=["Birthdays", "US Holidays"],
+        )
+        assert len(result) == 1
+
+    def test_include_and_exclude_combined(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_calendar
+
+        mock_store.calendarsForEntityType_.return_value = [
+            _make_mock_calendar("Work"),
+            _make_mock_calendar("Personal"),
+            _make_mock_calendar("Birthdays"),
+        ]
+        result = cal._filter_calendars(
+            mock_store,
+            calendars=["Work", "Personal"],
+            exclude_calendars=["Personal"],
+        )
+        assert len(result) == 1
+
+    def test_case_insensitive(
+        self, patched_calendar: Any, mock_store: MagicMock
+    ) -> None:
+        cal = _get_cal(patched_calendar)
+        from tests.conftest import _make_mock_calendar
+
+        mock_store.calendarsForEntityType_.return_value = [
+            _make_mock_calendar("Work"),
+        ]
+        result = cal._filter_calendars(mock_store, calendars=["work"])
+        assert len(result) == 1
 
 
 # ---------------------------------------------------------------------------
